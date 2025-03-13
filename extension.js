@@ -15,16 +15,45 @@
 
 const BINDINGS = [
   {
-    shortcut: 'F12',
-    title: 'Terminator',
-    command: 'terminator'
+    shortcut: '<Shift><Alt><Ctrl>x',
+    title: 'TextEditor',
+    command: '/usr/bin/gnome-text-editor'
   },
-  // More bindings can be added, for example:
-  // {
-  //   shortcut: 'F11',
-  //   title: 'Gworldclock',
-  //   command: 'gworldclock'
-  // },
+  {
+    shortcut: '<Shift><Alt><Ctrl>c',
+    title: 'DBeaver',
+    command: 'dbeaver-ce'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>d',
+    title: 'Docker Desktop',
+    command: '"Docker Desktop"'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>r',
+    title: 'Terminal',
+    command: 'gnome-terminal'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>s',
+    title: 'Code',
+    command: 'code'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>t',
+    title: 'Chrome',
+    command: 'google-chrome'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>w',
+    title: 'Slack',
+    command: 'slack'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>p',
+    title: 'Spotify',
+    command: 'spotify'
+  },
 ];
 
 import Gio from 'gi://Gio';
