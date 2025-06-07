@@ -27,12 +27,12 @@ const BINDINGS = [
   {
     shortcut: '<Shift><Alt><Ctrl>d',
     title: 'Docker Desktop',
-    command: '"Docker Desktop"'
+    command: 'docker desktop start'
   },
   {
     shortcut: '<Shift><Alt><Ctrl>r',
-    title: 'Terminal',
-    command: 'gnome-terminal'
+    title: 'kitty',
+    command: 'kitty'
   },
   {
     shortcut: '<Shift><Alt><Ctrl>s',
@@ -48,6 +48,11 @@ const BINDINGS = [
     shortcut: '<Shift><Alt><Ctrl>w',
     title: 'Slack',
     command: 'slack'
+  },
+  {
+    shortcut: '<Shift><Alt><Ctrl>f',
+    title: 'Postman',
+    command: 'postman'
   },
   {
     shortcut: '<Shift><Alt><Ctrl>p',
@@ -119,10 +124,13 @@ export default class GnomeMagicWindowExtension extends Extension {
 
   get_windows() {
     return global.get_window_actors()
-           .map(w => ({id: w.toString(),
-                       ref: w,
-                       title: w.get_meta_window().get_wm_class()}))
-           .filter(w => w.title && !w.title.includes('Gnome-shell'));
+      .map(w => ({
+        id: w.toString(),
+        ref: w,
+        title: w.get_meta_window().get_wm_class(),
+        otherTitle: w.get_meta_window().get_title()
+      }))
+      .filter(w => w.title && !w.title.includes('Gnome-shell'));
   }
 
   get_active_window() {
@@ -131,14 +139,14 @@ export default class GnomeMagicWindowExtension extends Extension {
 
   find_magic_window(title) {
     return this.get_windows()
-           .filter(w => w.title.toLowerCase().includes(title.toLowerCase()))[0];
+      .filter(w => w.title.toLowerCase().includes(title.toLowerCase()))[0];
   }
 
   magic_key_pressed(title, command) {
     // For debugging:
-    Util.spawn(['/bin/bash', '-c', `echo '${this.debug()}' > /tmp/test`]);
+    Util.spawn(['/bin/bash', '-c', `echo '${this.debug()}' > /tmp/gnome-window-debug`]);
     // throw new Error(this.debug());
-    log(this.debug());  // visible in journalctl -f
+    // log(this.debug());  // visible in journalctl -f
 
     const current = this.get_active_window();
     const magic = this.find_magic_window(title);
