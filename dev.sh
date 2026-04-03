@@ -2,30 +2,67 @@
 set -euo pipefail
 
 EXT="gnome-magic-window@adrienverge"
+DBUS_PATH="/org/gnome/Shell/Extensions/GnomeMagicWindow"
+DBUS_IFACE="org.gnome.Shell.Extensions.GnomeMagicWindow"
+DEBUG_FILE="/tmp/gnome-window-debug"
 
 case "${1:-help}" in
   reload)
-    echo ":: Disabling $EXT..."
+    # On GNOME 49 Wayland, ES modules are cached for the shell process lifetime.
+    # disable/enable re-runs lifecycle methods but does NOT re-import source files.
+    # A full session restart is needed to pick up code changes.
+    echo ":: Restarting GNOME Shell session to reload extension source..."
+    echo ":: (Your session will restart — all windows will be preserved)"
+    echo ""
+    read -p "Press Enter to restart, or Ctrl+C to cancel..."
+    busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Extensions DisableExtension s "$EXT"
+    busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Extensions EnableExtension s "$EXT"
+    # If that's not enough (code changes), fall back to session restart:
+    echo ":: Note: If code changes didn't take effect, run: ./dev.sh restart-shell"
+    ;;
+  restart-shell)
+    echo ":: This will log you out and back in. Save your work!"
+    read -p "Press Enter to continue, or Ctrl+C to cancel..."
+    gnome-session-quit --no-prompt
+    ;;
+  toggle)
+    # Quick disable/enable — useful for testing enable()/disable() logic
+    # without needing source changes to reload
+    echo ":: Toggling extension off and on..."
     gnome-extensions disable "$EXT" 2>/dev/null || true
-    echo ":: Enabling $EXT..."
+    sleep 0.5
     gnome-extensions enable "$EXT"
-    echo ":: Reloaded."
+    echo ":: Toggled. (Note: source code is NOT reloaded, only lifecycle methods re-run)"
+    ;;
+  trigger)
+    # Fire a magic_key_pressed via dbus — useful for testing without pressing keys
+    TITLE="${2:-test}"
+    CMD="${3:-echo}"
+    echo ":: Triggering magic_key_pressed('$TITLE', '$CMD') via D-Bus..."
+    gdbus call --session \
+      --dest org.gnome.Shell \
+      --object-path "$DBUS_PATH" \
+      --method "$DBUS_IFACE.magic_key_pressed" \
+      "$TITLE" "$CMD"
+    sleep 0.3
+    echo ":: Debug output:"
+    head -3 "$DEBUG_FILE" 2>/dev/null || echo "(no output)"
     ;;
   logs)
     echo ":: Tailing GNOME Shell logs (Ctrl+C to stop)..."
     journalctl -f /usr/bin/gnome-shell -o cat
     ;;
-  nested)
-    echo ":: Starting nested GNOME Shell session..."
-    echo ":: (Close the window or Alt+F4 to exit)"
-    dbus-run-session -- gnome-shell --nested --wayland
+  errors)
+    echo ":: Extension errors:"
+    busctl --user call org.gnome.Shell /org/gnome/Shell \
+      org.gnome.Shell.Extensions GetExtensionErrors s "$EXT" 2>&1
     ;;
   debug)
     echo ":: Extension state:"
     gnome-extensions info "$EXT"
     echo ""
     echo ":: Last debug output:"
-    cat /tmp/gnome-window-debug 2>/dev/null || echo "(no debug output yet)"
+    cat "$DEBUG_FILE" 2>/dev/null || echo "(no debug output yet)"
     ;;
   pack)
     mkdir -p dist
@@ -36,10 +73,13 @@ case "${1:-help}" in
     echo "Usage: ./dev.sh <command>"
     echo ""
     echo "Commands:"
-    echo "  reload  - Disable and re-enable the extension (picks up code changes)"
-    echo "  logs    - Tail GNOME Shell journal logs"
-    echo "  nested  - Launch a nested GNOME Shell for safe testing"
-    echo "  debug   - Show extension info and last debug output"
-    echo "  pack    - Package extension as .zip for distribution"
+    echo "  reload         - Disable/enable extension (re-runs lifecycle, no source reload)"
+    echo "  restart-shell  - Restart GNOME session (required for source code changes)"
+    echo "  toggle         - Quick off/on cycle for testing enable/disable logic"
+    echo "  trigger [t] [c]- Fire magic_key_pressed via D-Bus (default: title='test' cmd='echo')"
+    echo "  logs           - Tail GNOME Shell journal logs"
+    echo "  errors         - Show extension errors from GNOME Shell"
+    echo "  debug          - Show extension info and last debug output"
+    echo "  pack           - Package extension as .zip for distribution"
     ;;
 esac
