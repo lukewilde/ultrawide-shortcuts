@@ -21,18 +21,18 @@ const BINDINGS = [
   },
   {
     shortcut: '<Shift><Alt><Ctrl>c',
-    title: 'DBeaver',
-    command: 'dbeaver-ce'
+    title: 'Steam',
+    command: 'steam'
   },
   {
     shortcut: '<Shift><Alt><Ctrl>d',
-    title: 'Docker Desktop',
-    command: 'docker desktop start'
+    title: '',
+    command: ''
   },
   {
     shortcut: '<Shift><Alt><Ctrl>r',
     title: 'kitty',
-    command: 'kitty'
+    command: '/home/wilde/.local/kitty.app/bin/kitty'
   },
   {
     shortcut: '<Shift><Alt><Ctrl>s',
@@ -46,13 +46,13 @@ const BINDINGS = [
   },
   {
     shortcut: '<Shift><Alt><Ctrl>w',
-    title: 'Slack',
-    command: 'slack'
+    title: 'FFPWA-01JX8K6PER4CNATQKDZEEK5XNH',
+    command: '/usr/bin/firefoxpwa site launch 01JX8K6PER4CNATQKDZEEK5XNH'
   },
   {
     shortcut: '<Shift><Alt><Ctrl>f',
-    title: 'Postman',
-    command: 'postman'
+    title: '',
+    command: ''
   },
   {
     shortcut: '<Shift><Alt><Ctrl>p',

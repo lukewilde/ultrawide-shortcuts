@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "name": "gnome-magic-window",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint extension.js",
+    "lint:fix": "eslint --fix extension.js",
+    "reload": "./dev.sh reload",
+    "logs": "./dev.sh logs",
+    "nested": "./dev.sh nested",
+    "pack": "gnome-extensions pack . --out-dir=dist --force"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0"
+  }
+}
