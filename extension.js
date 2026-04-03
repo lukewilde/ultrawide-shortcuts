@@ -1,170 +1,211 @@
-// Copyright (C) 2017-2021 Adrien Vergé
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-const BINDINGS = [
-  {
-    shortcut: '<Shift><Alt><Ctrl>x',
-    title: 'TextEditor',
-    command: '/usr/bin/gnome-text-editor'
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>c',
-    title: 'Steam',
-    command: 'steam'
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>d',
-    title: '',
-    command: ''
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>r',
-    title: 'kitty',
-    command: '/home/wilde/.local/kitty.app/bin/kitty'
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>s',
-    title: 'Code',
-    command: 'code'
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>t',
-    title: 'Chrome',
-    command: 'google-chrome'
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>w',
-    title: 'FFPWA-01JX8K6PER4CNATQKDZEEK5XNH',
-    command: '/usr/bin/firefoxpwa site launch 01JX8K6PER4CNATQKDZEEK5XNH'
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>f',
-    title: '',
-    command: ''
-  },
-  {
-    shortcut: '<Shift><Alt><Ctrl>p',
-    title: 'Spotify',
-    command: 'spotify'
-  },
-];
-
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-const Mainloop = imports.mainloop
-import Meta from 'gi://Meta'; // const Meta = imports.gi.Meta; //TODO
-import Shell from 'gi://Shell';
-import * as Util from 'resource:///org/gnome/shell/misc/util.js';
-
+import { gridToPixels, parsePositionPresets } from './positioning.js';
 
 export default class GnomeMagicWindowExtension extends Extension {
   enable() {
+    this._settings = this.getSettings();
+    this._actions = [];
+    this._lastNotMagic = null;
+    this._launching = false;
+    this._presetIndices = new Map(); // wmClass -> current preset index
+
+    this._setupDbus();
+    this._registerBindings();
+
+    this._settingsChangedId = this._settings.connect('changed::bindings', () => {
+      this._unregisterBindings();
+      this._registerBindings();
+    });
+  }
+
+  disable() {
+    if (this._settingsChangedId) {
+      this._settings.disconnect(this._settingsChangedId);
+      this._settingsChangedId = null;
+    }
+
+    this._unregisterBindings();
+
+    this._dbus.flush();
+    this._dbus.unexport();
+    this._dbus = null;
+    this._settings = null;
+    this._presetIndices = null;
+  }
+
+  _setupDbus() {
     this._dbus = Gio.DBusExportedObject.wrapJSObject(`
       <node>
         <interface name="org.gnome.Shell.Extensions.GnomeMagicWindow">
           <method name="magic_key_pressed">
-            <arg type="s" direction="in" name="title"/>
+            <arg type="s" direction="in" name="wmClass"/>
             <arg type="s" direction="in" name="command"/>
+            <arg type="s" direction="in" name="position"/>
+          </method>
+          <method name="list_windows">
+            <arg type="s" direction="out" name="json"/>
           </method>
         </interface>
       </node>`, this);
     this._dbus.export(Gio.DBus.session, '/org/gnome/Shell/Extensions/GnomeMagicWindow');
+  }
 
-    this._actions = [];
+  _getBindings() {
+    try {
+      return JSON.parse(this._settings.get_string('bindings'));
+    } catch (e) {
+      console.error(`gnome-magic-window: failed to parse bindings: ${e.message}`);
+      return [];
+    }
+  }
 
-    for (const binding of BINDINGS) {
-      const thisAction = global.display.grab_accelerator(binding.shortcut, 0);
-      if (thisAction !== Meta.KeyBindingAction.NONE) {
-        global.display.connect(
-          'accelerator-activated',
-          (display, action, deviceId, timestamp) => {
-            if (action === thisAction) {
-              return this.magic_key_pressed(binding.title, binding.command);
-            }
+  _registerBindings() {
+    const bindings = this._getBindings();
+
+    for (const binding of bindings) {
+      if (!binding.wmClass || !binding.shortcut) continue;
+
+      const action = global.display.grab_accelerator(binding.shortcut, 0);
+      if (action === Meta.KeyBindingAction.NONE) continue;
+
+      const handlerId = global.display.connect(
+        'accelerator-activated',
+        (_display, activatedAction, _deviceId, _timestamp) => {
+          if (activatedAction === action) {
+            this.magic_key_pressed(
+              binding.wmClass,
+              binding.command,
+              binding.position || ''
+            );
           }
-        );
+        }
+      );
 
-        const name = Meta.external_binding_name_for_action(thisAction);
-        Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+      const name = Meta.external_binding_name_for_action(action);
+      Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
 
-        this._actions.push(thisAction);
-      }
+      this._actions.push({ action, handlerId });
     }
   }
 
-  disable() {
-    for (const action of this._actions)
+  _unregisterBindings() {
+    for (const { action, handlerId } of this._actions) {
+      global.display.disconnect(handlerId);
       global.display.ungrab_accelerator(action);
-    this._actions = [];
-
-    this._dbus.flush();
-    this._dbus.unexport();
-    delete this._dbus;
-  }
-
-  debug() {
-    return JSON.stringify({
-      windows: this.get_windows(),
-      active_window: this.get_active_window(),
-    }, null, 2);
-  }
-
-  get_windows() {
-    return global.get_window_actors()
-      .map(w => ({
-        id: w.toString(),
-        ref: w,
-        title: w.get_meta_window().get_wm_class(),
-        otherTitle: w.get_meta_window().get_title()
-      }))
-      .filter(w => w.title && !w.title.includes('Gnome-shell'));
-  }
-
-  get_active_window() {
-    return this.get_windows().slice(-1)[0];
-  }
-
-  find_magic_window(title) {
-    return this.get_windows()
-      .filter(w => w.title.toLowerCase().includes(title.toLowerCase()))[0];
-  }
-
-  magic_key_pressed(title, command) {
-    // For debugging:
-    Util.spawn(['/bin/bash', '-c', `echo '${this.debug()}' > /tmp/gnome-window-debug`]);
-    // throw new Error(this.debug());
-    // log(this.debug());  // visible in journalctl -f
-
-    const current = this.get_active_window();
-    const magic = this.find_magic_window(title);
-
-    if (!magic) {
-      if (!this._launching) {
-        this._launching = true;
-        Mainloop.timeout_add(1000, () => this._launching = false, 1000);
-        Util.spawnCommandLine(command);
-        this._last_not_magic = current;
-      }
-
-    } else if (current && current.id !== magic.id) {
-      Main.activateWindow(magic.ref.get_meta_window());
-      this._last_not_magic = current;
-
-    } else if (this._last_not_magic) {
-      Main.activateWindow(this._last_not_magic.ref.get_meta_window());
     }
+    this._actions = [];
+  }
+
+  _getWindows() {
+    return global.get_window_actors()
+      .map(a => {
+        const w = a.get_meta_window();
+        return {
+          id: a.toString(),
+          actor: a,
+          metaWindow: w,
+          wmClass: w.get_wm_class() || '',
+          windowTitle: w.get_title() || '',
+          monitor: w.get_monitor(),
+          stableSequence: w.get_stable_sequence(),
+        };
+      })
+      .filter(w => w.wmClass && !w.wmClass.includes('Gnome-shell'));
+  }
+
+  _getActiveWindow() {
+    const focused = global.display.focus_window;
+    if (!focused) return null;
+    const windows = this._getWindows();
+    return windows.find(w => w.metaWindow === focused) || null;
+  }
+
+  _findWindows(wmClass) {
+    return this._getWindows()
+      .filter(w => w.wmClass.toLowerCase().includes(wmClass.toLowerCase()))
+      .sort((a, b) => a.stableSequence - b.stableSequence);
+  }
+
+  _positionWindow(metaWindow, positionStr) {
+    if (!positionStr) return;
+
+    const presets = parsePositionPresets(positionStr);
+    if (presets.length === 0) return;
+
+    const wmClass = metaWindow.get_wm_class() || '';
+    const lastIndex = this._presetIndices.get(wmClass) ?? -1;
+    const nextIndex = (lastIndex + 1) % presets.length;
+    this._presetIndices.set(wmClass, nextIndex);
+
+    const { gridSize, selection } = presets[nextIndex];
+    const monitorIdx = metaWindow.get_monitor();
+    const workspace = global.workspace_manager.get_active_workspace();
+    const workArea = workspace.get_work_area_for_monitor(monitorIdx);
+
+    const rect = gridToPixels(selection, gridSize, {
+      x: workArea.x,
+      y: workArea.y,
+      width: workArea.width,
+      height: workArea.height,
+    });
+
+    metaWindow.unmaximize(Meta.MaximizeFlags.BOTH);
+    metaWindow.move_resize_frame(
+      false,
+      Math.round(rect.x),
+      Math.round(rect.y),
+      Math.round(rect.width),
+      Math.round(rect.height)
+    );
+  }
+
+  magic_key_pressed(wmClass, command, position) {
+    const current = this._getActiveWindow();
+    const matches = this._findWindows(wmClass);
+
+    if (matches.length === 0) {
+      // No matching window — launch the application
+      if (!this._launching && command) {
+        this._launching = true;
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+          this._launching = false;
+          return GLib.SOURCE_REMOVE;
+        });
+        try {
+          GLib.spawn_command_line_async(command);
+        } catch (e) {
+          console.error(`gnome-magic-window: failed to launch '${command}': ${e.message}`);
+        }
+        this._lastNotMagic = current;
+      }
+    } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {
+      // Matching window exists but isn't focused — activate first match
+      Main.activateWindow(matches[0].metaWindow);
+      if (position) this._positionWindow(matches[0].metaWindow, position);
+      this._lastNotMagic = current;
+    } else if (matches.length > 1) {
+      // Current window IS a match and there are multiple — cycle to next
+      const currentIdx = matches.findIndex(w => w.metaWindow === current.metaWindow);
+      const nextIdx = (currentIdx + 1) % matches.length;
+      Main.activateWindow(matches[nextIdx].metaWindow);
+      if (position) this._positionWindow(matches[nextIdx].metaWindow, position);
+    } else if (this._lastNotMagic) {
+      // Only one match and it's focused — go back to previous window
+      Main.activateWindow(this._lastNotMagic.metaWindow);
+    }
+  }
+
+  list_windows() {
+    const windows = this._getWindows().map(w => ({
+      wmClass: w.wmClass,
+      windowTitle: w.windowTitle,
+      monitor: w.monitor,
+    }));
+    return JSON.stringify(windows);
   }
 }

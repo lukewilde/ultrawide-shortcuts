@@ -7,6 +7,7 @@ const gnomeGlobals = {
   logError: "readonly",
   print: "readonly",
   printerr: "readonly",
+  console: "readonly",
 };
 
 export default [
