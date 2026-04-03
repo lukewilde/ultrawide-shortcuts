@@ -36,17 +36,16 @@ case "${1:-help}" in
     ;;
   trigger)
     # Fire a magic_key_pressed via dbus — useful for testing without pressing keys
-    TITLE="${2:-test}"
+    WM_CLASS="${2:-test}"
     CMD="${3:-echo}"
-    echo ":: Triggering magic_key_pressed('$TITLE', '$CMD') via D-Bus..."
+    POS="${4:-}"
+    echo ":: Triggering magic_key_pressed('$WM_CLASS', '$CMD', '$POS') via D-Bus..."
     gdbus call --session \
       --dest org.gnome.Shell \
       --object-path "$DBUS_PATH" \
       --method "$DBUS_IFACE.magic_key_pressed" \
-      "$TITLE" "$CMD"
-    sleep 0.3
-    echo ":: Debug output:"
-    head -3 "$DEBUG_FILE" 2>/dev/null || echo "(no output)"
+      "$WM_CLASS" "$CMD" "$POS"
+    echo ":: Done."
     ;;
   logs)
     echo ":: Tailing GNOME Shell logs (Ctrl+C to stop)..."
@@ -76,7 +75,7 @@ case "${1:-help}" in
     echo "  reload         - Disable/enable extension (re-runs lifecycle, no source reload)"
     echo "  restart-shell  - Restart GNOME session (required for source code changes)"
     echo "  toggle         - Quick off/on cycle for testing enable/disable logic"
-    echo "  trigger [t] [c]- Fire magic_key_pressed via D-Bus (default: title='test' cmd='echo')"
+    echo "  trigger [wm] [cmd] [pos] - Fire magic_key_pressed via D-Bus"
     echo "  logs           - Tail GNOME Shell journal logs"
     echo "  errors         - Show extension errors from GNOME Shell"
     echo "  debug          - Show extension info and last debug output"

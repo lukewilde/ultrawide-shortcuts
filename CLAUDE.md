@@ -9,10 +9,12 @@
 
 ## Extension Structure
 
-- `extension.js` — Main extension. Class extends `Extension` with `enable()`/`disable()` lifecycle
-- `metadata.json` — Extension metadata, uuid, supported shell versions
-- `prefs.js` — Preferences UI (not yet created, planned)
-- `schemas/` — GSettings schemas (not yet created, planned)
+- `extension.js` — Main extension: lifecycle, keybindings, window focus/launch/position
+- `positioning.js` — Pure-function grid math and preset parsing (no gi:// imports, testable standalone)
+- `prefs.js` — Adw preferences UI with binding editor and WM class auto-detect
+- `schemas/` — GSettings schema (compile with `glib-compile-schemas schemas/`)
+- `metadata.json` — Extension metadata, uuid, supported shell versions, settings-schema
+- `test/test_positioning.js` — Unit tests (run with `gjs -m test/test_positioning.js`)
 
 ## Development Workflow
 
@@ -30,14 +32,17 @@ On GNOME 49 Wayland, GJS caches ES modules for the shell process lifetime. There
 ### Dev commands
 
 ```bash
-npm run lint          # ESLint with GJS globals
-./dev.sh toggle       # Re-run enable()/disable() (no source reload)
-./dev.sh restart-shell # Session restart (required for code changes)
-./dev.sh trigger T C  # Fire magic_key_pressed(title, command) via D-Bus
-./dev.sh errors       # Check extension errors from GNOME Shell
-./dev.sh debug        # Extension state + last debug dump
-./dev.sh logs         # Tail GNOME Shell journal (journalctl)
-./dev.sh pack         # Package as .zip
+npm run lint              # ESLint with GJS globals
+gjs -m test/test_positioning.js  # Run positioning unit tests
+glib-compile-schemas schemas/    # Recompile after schema changes
+gnome-extensions prefs gnome-magic-window@adrienverge  # Open preferences UI
+./dev.sh toggle           # Re-run enable()/disable() (no source reload)
+./dev.sh restart-shell    # Session restart (required for code changes)
+./dev.sh trigger WM CMD POS  # Fire magic_key_pressed(wmClass, command, position) via D-Bus
+./dev.sh errors           # Check extension errors from GNOME Shell
+./dev.sh debug            # Extension state + last debug dump
+./dev.sh logs             # Tail GNOME Shell journal (journalctl)
+./dev.sh pack             # Package as .zip
 ```
 
 ### Dev cycle
@@ -63,6 +68,20 @@ Since each code change requires a session restart, batch related changes and lin
 - `Main.layoutManager.monitors` — array of monitors with x, y, width, height, geometryScale
 - `monitorManager.connect("monitors-changed", ...)` — react to monitor changes
 - `Main.activateWindow(metaWindow)` — focus a window
+
+## Configuration
+
+Bindings are stored as a JSON string in GSettings key `bindings` at path
+`/org/gnome/shell/extensions/gnome-magic-window/bindings`.
+
+Each binding object has: `shortcut`, `wmClass`, `command`, `position`.
+
+Position format: `COLSxROWS START_COL:START_ROW END_COL:END_ROW` (1-indexed).
+Multiple presets separated by commas cycle on repeated activation.
+Example: `16x1 1:1 8:1, 1:1 12:1` — first press = left half, second press = left 3/4.
+
+Config changes via prefs UI or dconf take effect immediately (bindings re-register on settings change).
+Schema changes require `glib-compile-schemas schemas/` + session restart.
 
 ## Conventions
 
