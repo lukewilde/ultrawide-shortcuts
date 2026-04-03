@@ -4,15 +4,11 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels, parsePositionPresets } from './positioning.js';
-
 export default class GnomeMagicWindowExtension extends Extension {
   enable() {
     this._settings = this.getSettings();
     this._actions = [];
-    this._lastNotMagic = null;
     this._launching = false;
-    this._presetIndices = new Map(); // wmClass -> current preset index
 
     this._setupDbus();
     this._registerBindings();
@@ -35,7 +31,6 @@ export default class GnomeMagicWindowExtension extends Extension {
     this._dbus.unexport();
     this._dbus = null;
     this._settings = null;
-    this._presetIndices = null;
   }
 
   _setupDbus() {
@@ -45,7 +40,6 @@ export default class GnomeMagicWindowExtension extends Extension {
           <method name="magic_key_pressed">
             <arg type="s" direction="in" name="wmClass"/>
             <arg type="s" direction="in" name="command"/>
-            <arg type="s" direction="in" name="position"/>
           </method>
           <method name="list_windows">
             <arg type="s" direction="out" name="json"/>
@@ -79,8 +73,7 @@ export default class GnomeMagicWindowExtension extends Extension {
           if (activatedAction === action) {
             this.magic_key_pressed(
               binding.wmClass,
-              binding.command,
-              binding.position || ''
+              binding.command
             );
           }
         }
@@ -131,40 +124,7 @@ export default class GnomeMagicWindowExtension extends Extension {
       .sort((a, b) => a.stableSequence - b.stableSequence);
   }
 
-  _positionWindow(metaWindow, positionStr) {
-    if (!positionStr) return;
-
-    const presets = parsePositionPresets(positionStr);
-    if (presets.length === 0) return;
-
-    const wmClass = metaWindow.get_wm_class() || '';
-    const lastIndex = this._presetIndices.get(wmClass) ?? -1;
-    const nextIndex = (lastIndex + 1) % presets.length;
-    this._presetIndices.set(wmClass, nextIndex);
-
-    const { gridSize, selection } = presets[nextIndex];
-    const monitorIdx = metaWindow.get_monitor();
-    const workspace = global.workspace_manager.get_active_workspace();
-    const workArea = workspace.get_work_area_for_monitor(monitorIdx);
-
-    const rect = gridToPixels(selection, gridSize, {
-      x: workArea.x,
-      y: workArea.y,
-      width: workArea.width,
-      height: workArea.height,
-    });
-
-    metaWindow.unmaximize(Meta.MaximizeFlags.BOTH);
-    metaWindow.move_resize_frame(
-      false,
-      Math.round(rect.x),
-      Math.round(rect.y),
-      Math.round(rect.width),
-      Math.round(rect.height)
-    );
-  }
-
-  magic_key_pressed(wmClass, command, position) {
+  magic_key_pressed(wmClass, command) {
     const current = this._getActiveWindow();
     const matches = this._findWindows(wmClass);
 
@@ -181,23 +141,17 @@ export default class GnomeMagicWindowExtension extends Extension {
         } catch (e) {
           console.error(`gnome-magic-window: failed to launch '${command}': ${e.message}`);
         }
-        this._lastNotMagic = current;
       }
     } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {
       // Matching window exists but isn't focused — activate first match
       Main.activateWindow(matches[0].metaWindow);
-      if (position) this._positionWindow(matches[0].metaWindow, position);
-      this._lastNotMagic = current;
     } else if (matches.length > 1) {
       // Current window IS a match and there are multiple — cycle to next
       const currentIdx = matches.findIndex(w => w.metaWindow === current.metaWindow);
       const nextIdx = (currentIdx + 1) % matches.length;
       Main.activateWindow(matches[nextIdx].metaWindow);
-      if (position) this._positionWindow(matches[nextIdx].metaWindow, position);
-    } else if (this._lastNotMagic) {
-      // Only one match and it's focused — go back to previous window
-      Main.activateWindow(this._lastNotMagic.metaWindow);
     }
+    // Single match already focused — do nothing
   }
 
   list_windows() {

@@ -18,9 +18,7 @@ export default class GnomeMagicWindowPreferences extends ExtensionPreferences {
 
     this._bindingsGroup = new Adw.PreferencesGroup({
       title: 'Window Bindings',
-      description: 'Each binding maps a keyboard shortcut to an application. ' +
-        'Position uses grid format: "16x1 1:1 8:1" (cols x rows, start end). ' +
-        'Separate multiple presets with commas to cycle between them.',
+      description: 'Each binding maps a keyboard shortcut to an application.',
     });
     page.add(this._bindingsGroup);
 
@@ -122,14 +120,6 @@ export default class GnomeMagicWindowPreferences extends ExtensionPreferences {
     });
     row.add_row(commandRow);
 
-    // Position field
-    const positionRow = new Adw.EntryRow({ title: 'Position (e.g. 16x1 1:1 8:1)' });
-    positionRow.set_text(binding.position || '');
-    positionRow.connect('changed', () => {
-      this._updateBinding(index, 'position', positionRow.get_text());
-    });
-    row.add_row(positionRow);
-
     // Delete button
     const deleteRow = new Adw.ActionRow();
     const deleteButton = new Gtk.Button({
@@ -165,7 +155,6 @@ export default class GnomeMagicWindowPreferences extends ExtensionPreferences {
       shortcut: '',
       wmClass: '',
       command: '',
-      position: '',
     });
     this._saveBindings(bindings);
     this._loadBindings();

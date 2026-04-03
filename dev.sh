@@ -38,13 +38,12 @@ case "${1:-help}" in
     # Fire a magic_key_pressed via dbus — useful for testing without pressing keys
     WM_CLASS="${2:-test}"
     CMD="${3:-echo}"
-    POS="${4:-}"
-    echo ":: Triggering magic_key_pressed('$WM_CLASS', '$CMD', '$POS') via D-Bus..."
+    echo ":: Triggering magic_key_pressed('$WM_CLASS', '$CMD') via D-Bus..."
     gdbus call --session \
       --dest org.gnome.Shell \
       --object-path "$DBUS_PATH" \
       --method "$DBUS_IFACE.magic_key_pressed" \
-      "$WM_CLASS" "$CMD" "$POS"
+      "$WM_CLASS" "$CMD"
     echo ":: Done."
     ;;
   logs)
@@ -75,7 +74,7 @@ case "${1:-help}" in
     echo "  reload         - Disable/enable extension (re-runs lifecycle, no source reload)"
     echo "  restart-shell  - Restart GNOME session (required for source code changes)"
     echo "  toggle         - Quick off/on cycle for testing enable/disable logic"
-    echo "  trigger [wm] [cmd] [pos] - Fire magic_key_pressed via D-Bus"
+    echo "  trigger [wm] [cmd]       - Fire magic_key_pressed via D-Bus"
     echo "  logs           - Tail GNOME Shell journal logs"
     echo "  errors         - Show extension errors from GNOME Shell"
     echo "  debug          - Show extension info and last debug output"

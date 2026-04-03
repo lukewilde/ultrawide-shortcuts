@@ -4,9 +4,9 @@
           path="/org/gnome/shell/extensions/gnome-magic-window/">
 
     <key type="s" name="bindings">
-      <default><![CDATA['[{"shortcut":"<Shift><Alt><Ctrl>x","wmClass":"TextEditor","command":"/usr/bin/gnome-text-editor","position":""},{"shortcut":"<Shift><Alt><Ctrl>c","wmClass":"Steam","command":"steam","position":""},{"shortcut":"<Shift><Alt><Ctrl>d","wmClass":"","command":"","position":""},{"shortcut":"<Shift><Alt><Ctrl>r","wmClass":"kitty","command":"/home/wilde/.local/kitty.app/bin/kitty","position":""},{"shortcut":"<Shift><Alt><Ctrl>s","wmClass":"Code","command":"code","position":""},{"shortcut":"<Shift><Alt><Ctrl>t","wmClass":"Chrome","command":"google-chrome","position":""},{"shortcut":"<Shift><Alt><Ctrl>w","wmClass":"FFPWA-01JX8K6PER4CNATQKDZEEK5XNH","command":"/usr/bin/firefoxpwa site launch 01JX8K6PER4CNATQKDZEEK5XNH","position":""},{"shortcut":"<Shift><Alt><Ctrl>f","wmClass":"","command":"","position":""},{"shortcut":"<Shift><Alt><Ctrl>p","wmClass":"Spotify","command":"spotify","position":""}]']]></default>
+      <default><![CDATA['[{"shortcut":"<Shift><Alt><Ctrl>x","wmClass":"TextEditor","command":"/usr/bin/gnome-text-editor"},{"shortcut":"<Shift><Alt><Ctrl>c","wmClass":"Steam","command":"steam"},{"shortcut":"<Shift><Alt><Ctrl>d","wmClass":"","command":""},{"shortcut":"<Shift><Alt><Ctrl>r","wmClass":"kitty","command":"/home/wilde/.local/kitty.app/bin/kitty"},{"shortcut":"<Shift><Alt><Ctrl>s","wmClass":"Code","command":"code"},{"shortcut":"<Shift><Alt><Ctrl>t","wmClass":"Chrome","command":"google-chrome"},{"shortcut":"<Shift><Alt><Ctrl>w","wmClass":"FFPWA-01JX8K6PER4CNATQKDZEEK5XNH","command":"/usr/bin/firefoxpwa site launch 01JX8K6PER4CNATQKDZEEK5XNH"},{"shortcut":"<Shift><Alt><Ctrl>f","wmClass":"","command":""},{"shortcut":"<Shift><Alt><Ctrl>p","wmClass":"Spotify","command":"spotify"}]']]></default>
       <summary>Window binding configuration</summary>
-      <description>JSON array of objects with: shortcut (accelerator string), wmClass (case-insensitive substring match), command (launch command), position (grid preset string, e.g. "16x1 1:1 8:1, 1:1 12:1")</description>
+      <description>JSON array of objects with: shortcut (accelerator string), wmClass (case-insensitive substring match), command (launch command)</description>
     </key>
 
   </schema>

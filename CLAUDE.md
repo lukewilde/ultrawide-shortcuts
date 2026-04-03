@@ -38,7 +38,7 @@ glib-compile-schemas schemas/    # Recompile after schema changes
 gnome-extensions prefs gnome-magic-window@adrienverge  # Open preferences UI
 ./dev.sh toggle           # Re-run enable()/disable() (no source reload)
 ./dev.sh restart-shell    # Session restart (required for code changes)
-./dev.sh trigger WM CMD POS  # Fire magic_key_pressed(wmClass, command, position) via D-Bus
+./dev.sh trigger WM CMD   # Fire magic_key_pressed(wmClass, command) via D-Bus
 ./dev.sh errors           # Check extension errors from GNOME Shell
 ./dev.sh debug            # Extension state + last debug dump
 ./dev.sh logs             # Tail GNOME Shell journal (journalctl)
@@ -74,11 +74,7 @@ Since each code change requires a session restart, batch related changes and lin
 Bindings are stored as a JSON string in GSettings key `bindings` at path
 `/org/gnome/shell/extensions/gnome-magic-window/bindings`.
 
-Each binding object has: `shortcut`, `wmClass`, `command`, `position`.
-
-Position format: `COLSxROWS START_COL:START_ROW END_COL:END_ROW` (1-indexed).
-Multiple presets separated by commas cycle on repeated activation.
-Example: `16x1 1:1 8:1, 1:1 12:1` — first press = left half, second press = left 3/4.
+Each binding object has: `shortcut`, `wmClass`, `command`.
 
 Config changes via prefs UI or dconf take effect immediately (bindings re-register on settings change).
 Schema changes require `glib-compile-schemas schemas/` + session restart.
