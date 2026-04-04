@@ -26,7 +26,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
 
     // Add binding button
     const addButton = new Gtk.Button({
-      label: 'Add Binding',
+      label: 'Add Summon',
       css_classes: ['suggested-action'],
       halign: Gtk.Align.CENTER,
       margin_top: 12,
@@ -61,6 +61,8 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
 
     this._loadWards();
 
+    // Add Ward button in separate group (prevents inversion on reload)
+    const addWardGroup = new Adw.PreferencesGroup();
     const addWardButton = new Gtk.Button({
       label: 'Add Ward',
       css_classes: ['suggested-action'],
@@ -68,7 +70,8 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       margin_top: 12,
     });
     addWardButton.connect('clicked', () => this._addWard());
-    this._wardsGroup.add(addWardButton);
+    addWardGroup.add(addWardButton);
+    wardsPage.add(addWardGroup);
 
     this._wardsChangedId = this._settings.connect('changed::wards', () => {
       if (!this._writingWards) this._loadWards();
@@ -158,7 +161,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     // Delete button
     const deleteRow = new Adw.ActionRow();
     const deleteButton = new Gtk.Button({
-      label: 'Remove Binding',
+      label: 'Remove Summon',
       css_classes: ['destructive-action'],
       halign: Gtk.Align.CENTER,
       margin_top: 6,
@@ -280,6 +283,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
 
   _shortcutSubtitle(shortcutConfig) {
     const n = shortcutConfig.positions.length;
+    if (n === 0) return 'No positions';
     return n === 1 ? '1 position' : `${n} positions (cycling)`;
   }
 
@@ -318,9 +322,11 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
 
   _addShortcut(wardIndex) {
     const wards = this._getWards();
-    wards[wardIndex].shortcuts.push({ shortcut: '', positions: [] });
-    this._saveWards(wards);
-    this._loadWards();
+    if (wardIndex < wards.length) {
+      wards[wardIndex].shortcuts.push({ shortcut: '', positions: [] });
+      this._saveWards(wards);
+      this._loadWards();
+    }
   }
 
   _loadWards() {
