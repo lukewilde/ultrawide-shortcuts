@@ -339,14 +339,15 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
   }
 
   _textToPositions(text) {
-    return text.split(',').map(part => {
+    const results = text.split(',').map(part => {
       const tokens = part.trim().split(/\s+/);
       if (tokens.length < 2) return null;
       const [c1, r1] = tokens[0].split(':').map(Number);
       const [c2, r2] = tokens[1].split(':').map(Number);
       if ([c1, r1, c2, r2].some(n => isNaN(n) || n < 1)) return null;
       return { anchor: { col: c1, row: r1 }, target: { col: c2, row: r2 } };
-    }).filter(Boolean);
+    });
+    return results.includes(null) ? [] : results;
   }
 
   _updateWard(wardIndex, field, value) {
