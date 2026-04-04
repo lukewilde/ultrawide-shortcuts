@@ -1,8 +1,7 @@
 {
-  "name": "gnome-magic-window",
-  "description": "Bind a key to a specific program in Gnome Shell, with window positioning",
-  "uuid": "gnome-magic-window@adrienverge",
-  "url": "https://github.com/adrienverge/gnome-magic-window",
+  "name": "Window Summoner",
+  "description": "Summon apps with a shortcut and snap them into position",
+  "uuid": "window-summoner@ding",
   "shell-version": ["45", "46", "47", "48", "49"],
-  "settings-schema": "org.gnome.shell.extensions.gnome-magic-window"
+  "settings-schema": "org.gnome.shell.extensions.window-summoner"
 }

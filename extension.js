@@ -22,7 +22,7 @@ const POSITION_PRESETS = [
   ['<Alt><Super>9', '16x1 14:1 16:1'],
 ];
 
-export default class GnomeMagicWindowExtension extends Extension {
+export default class WindowSummonerExtension extends Extension {
   enable() {
     this._settings = this.getSettings();
     this._actions = [];
@@ -59,7 +59,7 @@ export default class GnomeMagicWindowExtension extends Extension {
   _setupDbus() {
     this._dbus = Gio.DBusExportedObject.wrapJSObject(`
       <node>
-        <interface name="org.gnome.Shell.Extensions.GnomeMagicWindow">
+        <interface name="org.gnome.Shell.Extensions.WindowSummoner">
           <method name="magic_key_pressed">
             <arg type="s" direction="in" name="wmClass"/>
             <arg type="s" direction="in" name="command"/>
@@ -69,7 +69,7 @@ export default class GnomeMagicWindowExtension extends Extension {
           </method>
         </interface>
       </node>`, this);
-    this._dbus.export(Gio.DBus.session, '/org/gnome/Shell/Extensions/GnomeMagicWindow');
+    this._dbus.export(Gio.DBus.session, '/org/gnome/Shell/Extensions/WindowSummoner');
   }
 
   // --- App focus/launch bindings (from GSettings) ---
@@ -78,7 +78,7 @@ export default class GnomeMagicWindowExtension extends Extension {
     try {
       return JSON.parse(this._settings.get_string('bindings'));
     } catch (e) {
-      console.error(`gnome-magic-window: failed to parse bindings: ${e.message}`);
+      console.error(`window-summoner: failed to parse bindings: ${e.message}`);
       return [];
     }
   }
@@ -236,8 +236,8 @@ export default class GnomeMagicWindowExtension extends Extension {
         try {
           GLib.spawn_command_line_async(command);
         } catch (e) {
-          console.error(`gnome-magic-window: failed to launch '${command}': ${e.message}`);
-          Main.notify('Magic Window', `Failed to launch: ${command}\n${e.message}`);
+          console.error(`window-summoner: failed to launch '${command}': ${e.message}`);
+          Main.notify('Window Summoner', `Failed to launch: ${command}\n${e.message}`);
         }
       }
     } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {

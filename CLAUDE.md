@@ -1,4 +1,4 @@
-# gnome-magic-window
+# Window Summoner
 
 ## Tech Stack
 
@@ -35,7 +35,7 @@ On GNOME 49 Wayland, GJS caches ES modules for the shell process lifetime. There
 npm run lint              # ESLint with GJS globals
 gjs -m test/test_positioning.js  # Run positioning unit tests
 glib-compile-schemas schemas/    # Recompile after schema changes
-gnome-extensions prefs gnome-magic-window@adrienverge  # Open preferences UI
+gnome-extensions prefs window-summoner@ding  # Open preferences UI
 ./dev.sh toggle           # Re-run enable()/disable() (no source reload)
 ./dev.sh restart-shell    # Session restart (required for code changes)
 ./dev.sh trigger WM CMD   # Fire magic_key_pressed(wmClass, command) via D-Bus
@@ -72,7 +72,7 @@ Since each code change requires a session restart, batch related changes and lin
 ## Configuration
 
 Bindings are stored as a JSON string in GSettings key `bindings` at path
-`/org/gnome/shell/extensions/gnome-magic-window/bindings`.
+`/org/gnome/shell/extensions/window-summoner/bindings`.
 
 Each binding object has: `shortcut`, `wmClass`, `command`.
 
@@ -83,5 +83,5 @@ Schema changes require `glib-compile-schemas schemas/` + session restart.
 
 - All keyboard shortcuts use `<Shift><Alt><Ctrl>` + letter prefix
 - Window matching is case-insensitive substring on WM class
-- Debug output written to `/tmp/gnome-window-debug`
-- Extension exposes D-Bus interface at `org.gnome.Shell.Extensions.GnomeMagicWindow`
+- Debug output written to `/tmp/window-summoner-debug`
+- Extension exposes D-Bus interface at `org.gnome.Shell.Extensions.WindowSummoner`

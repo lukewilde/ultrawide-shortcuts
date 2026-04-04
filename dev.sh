@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXT="gnome-magic-window@adrienverge"
-DBUS_PATH="/org/gnome/Shell/Extensions/GnomeMagicWindow"
-DBUS_IFACE="org.gnome.Shell.Extensions.GnomeMagicWindow"
-DEBUG_FILE="/tmp/gnome-window-debug"
+EXT="window-summoner@ding"
+DBUS_PATH="/org/gnome/Shell/Extensions/WindowSummoner"
+DBUS_IFACE="org.gnome.Shell.Extensions.WindowSummoner"
+DEBUG_FILE="/tmp/window-summoner-debug"
 
 case "${1:-help}" in
   reload)

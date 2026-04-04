@@ -4,7 +4,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-export default class GnomeMagicWindowPreferences extends ExtensionPreferences {
+export default class WindowSummonerPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window) {
     this._settings = this.getSettings();
     this._window = window;
@@ -165,8 +165,8 @@ export default class GnomeMagicWindowPreferences extends ExtensionPreferences {
       const connection = Gio.DBus.session;
       const result = connection.call_sync(
         'org.gnome.Shell',
-        '/org/gnome/Shell/Extensions/GnomeMagicWindow',
-        'org.gnome.Shell.Extensions.GnomeMagicWindow',
+        '/org/gnome/Shell/Extensions/WindowSummoner',
+        'org.gnome.Shell.Extensions.WindowSummoner',
         'list_windows',
         null,
         new GLib.VariantType('(s)'),
@@ -209,7 +209,7 @@ export default class GnomeMagicWindowPreferences extends ExtensionPreferences {
 
       dialog.present(this._window);
     } catch (e) {
-      console.error(`gnome-magic-window: window detection failed: ${e.message}`);
+      console.error(`window-summoner: window detection failed: ${e.message}`);
       this._showMessage('Failed to detect windows. Is the extension running?');
     }
   }

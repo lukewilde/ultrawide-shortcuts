@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "gnome-magic-window",
+  "name": "window-summoner",
   "type": "module",
   "scripts": {
     "lint": "eslint extension.js",
