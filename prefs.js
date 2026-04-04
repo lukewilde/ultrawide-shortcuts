@@ -53,16 +53,13 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     });
     window.add(this._wardsPage);
 
-    this._wardsGroup = new Adw.PreferencesGroup({
-      title: 'Window Positions',
+    const wardsDescGroup = new Adw.PreferencesGroup({
       description: 'Each window position defines a grid layout with keyboard shortcuts that snap windows into position.',
     });
-    this._wardsPage.add(this._wardsGroup);
+    this._wardsPage.add(wardsDescGroup);
 
-    this._loadWards();
-
-    // Add Window Position button in separate group (prevents inversion on reload)
-    const addWardGroup = new Adw.PreferencesGroup();
+    // Add Window Position button — stored so _loadWards can keep it last
+    this._addWardGroup = new Adw.PreferencesGroup();
     const addWardButton = new Gtk.Button({
       label: 'Add Window Position',
       css_classes: ['suggested-action'],
@@ -70,8 +67,9 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       margin_top: 12,
     });
     addWardButton.connect('clicked', () => this._addWard());
-    addWardGroup.add(addWardButton);
-    this._wardsPage.add(addWardGroup);
+    this._addWardGroup.add(addWardButton);
+
+    this._loadWards();
 
     this._wardsChangedId = this._settings.connect('changed::wards', () => {
       if (!this._writingWards) this._loadWards();
@@ -134,7 +132,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     row.add_row(shortcutRow);
 
     // WM Class field + detect button
-    const wmClassRow = new Adw.EntryRow({ title: 'WM Class' });
+    const wmClassRow = new Adw.EntryRow({ title: 'Application' });
     wmClassRow.set_text(binding.wmClass || '');
     wmClassRow.connect('changed', () => {
       this._updateBinding(index, 'wmClass', wmClassRow.get_text());
@@ -394,34 +392,33 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
   }
 
   _loadWards() {
-    const wardStates = this._wardRows
-      ? this._wardRows.map(card => ({
-          expanded: card.get_expanded(),
-          shortcutStates: (card._shortcutRows || []).map(r => r.get_expanded()),
+    const wardStates = this._wardGroups
+      ? this._wardGroups.map(g => ({
+          shortcutStates: (g._shortcutRows || []).map(r => r.get_expanded()),
         }))
       : [];
 
     const adj = this._getWardsScrollAdj();
     const scrollPos = adj?.get_value() ?? 0;
 
-    if (this._wardRows) {
-      this._wardRows.forEach(r => this._wardsGroup.remove(r));
+    if (this._wardGroups) {
+      this._wardGroups.forEach(g => this._wardsPage.remove(g));
     }
-    this._wardRows = [];
+    this._wardsPage.remove(this._addWardGroup);
+    this._wardGroups = [];
 
     const wards = this._getWards();
     wards.forEach((ward, index) => {
-      const row = this._createWardCard(ward, index);
+      const group = this._createWardGroup(ward, index);
       const state = wardStates[index];
-      if (state?.expanded) {
-        row.set_expanded(true);
-        (row._shortcutRows || []).forEach((sr, si) => {
-          if (state.shortcutStates[si]) sr.set_expanded(true);
-        });
-      }
-      this._wardsGroup.add(row);
-      this._wardRows.push(row);
+      (group._shortcutRows || []).forEach((sr, si) => {
+        if (state?.shortcutStates[si]) sr.set_expanded(true);
+      });
+      this._wardsPage.add(group);
+      this._wardGroups.push(group);
     });
+
+    this._wardsPage.add(this._addWardGroup);
 
     if (adj && scrollPos > 0) {
       GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
@@ -431,27 +428,16 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     }
   }
 
-  _createWardCard(ward, wardIndex) {
-    const card = new Adw.ExpanderRow({
+  _createWardGroup(ward, wardIndex) {
+    const group = new Adw.PreferencesGroup({
       title: ward.name || '(unnamed)',
-      subtitle: this._wardSubtitle(ward),
+      description: this._wardSubtitle(ward),
     });
 
-    const nameRow = new Adw.EntryRow({ title: 'Name' });
-    nameRow.set_text(ward.name || '');
-    nameRow.connect('changed', () => {
-      this._updateWard(wardIndex, 'name', nameRow.get_text());
-      card.set_title(nameRow.get_text() || '(unnamed)');
-    });
-    card.add_row(nameRow);
-
-    const deleteRow = new Adw.ActionRow();
     const deleteBtn = new Gtk.Button({
-      label: 'Delete Window Position',
+      label: 'Delete',
       css_classes: ['destructive-action'],
-      halign: Gtk.Align.CENTER,
-      margin_top: 6,
-      margin_bottom: 6,
+      valign: Gtk.Align.CENTER,
     });
     deleteBtn.connect('clicked', () => {
       const wards = this._getWards();
@@ -459,52 +445,63 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       this._saveWards(wards);
       this._loadWards();
     });
-    deleteRow.set_child(deleteBtn);
-    card.add_row(deleteRow);
+    group.set_header_suffix(deleteBtn);
 
-    card.add_row(this._makePairRow('Grid size',
+    const gridHeader = new Adw.ActionRow({ title: 'Grid Settings' });
+    gridHeader.set_activatable(false);
+    group.add(gridHeader);
+
+    const nameRow = new Adw.EntryRow({ title: 'Name' });
+    nameRow.set_text(ward.name || '');
+    nameRow.connect('changed', () => {
+      this._updateWard(wardIndex, 'name', nameRow.get_text());
+      group.set_title(nameRow.get_text() || '(unnamed)');
+    });
+    group.add(nameRow);
+
+    group.add(this._makePairRow('Grid size',
       {
         label: 'Cols', value: ward.cols, min: 1, max: 100,
         onChanged: v => {
           this._updateWard(wardIndex, 'cols', v);
-          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+          group.set_description(this._wardSubtitle(this._getWards()[wardIndex]));
         },
       },
       {
         label: 'Rows', value: ward.rows, min: 1, max: 100,
         onChanged: v => {
           this._updateWard(wardIndex, 'rows', v);
-          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+          group.set_description(this._wardSubtitle(this._getWards()[wardIndex]));
         },
       }
     ));
 
-    card.add_row(this._makePairRow('Margins',
+    group.add(this._makePairRow('Margins',
       {
         label: 'Edge (px)', value: ward.edgeMargin, min: 0, max: 500,
         onChanged: v => {
           this._updateWard(wardIndex, 'edgeMargin', v);
-          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+          group.set_description(this._wardSubtitle(this._getWards()[wardIndex]));
         },
       },
       {
         label: 'Gap (px)', value: ward.cellGap, min: 0, max: 500,
         onChanged: v => {
           this._updateWard(wardIndex, 'cellGap', v);
-          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+          group.set_description(this._wardSubtitle(this._getWards()[wardIndex]));
         },
       }
     ));
 
     const shortcutsHeader = new Adw.ActionRow({ title: 'Shortcuts' });
     shortcutsHeader.set_activatable(false);
-    card.add_row(shortcutsHeader);
+    group.add(shortcutsHeader);
 
-    card._shortcutRows = [];
+    group._shortcutRows = [];
     ward.shortcuts.forEach((shortcutConfig, shortcutIndex) => {
       const sr = this._createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex);
-      card._shortcutRows.push(sr);
-      card.add_row(sr);
+      group._shortcutRows.push(sr);
+      group.add(sr);
     });
 
     const addShortcutRow = new Adw.ActionRow();
@@ -517,9 +514,9 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     });
     addShortcutBtn.connect('clicked', () => this._addShortcut(wardIndex));
     addShortcutRow.set_child(addShortcutBtn);
-    card.add_row(addShortcutRow);
+    group.add(addShortcutRow);
 
-    return card;
+    return group;
   }
 
   _createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex) {
