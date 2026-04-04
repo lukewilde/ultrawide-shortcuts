@@ -11,14 +11,14 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     window.set_default_size(700, 600);
 
     const page = new Adw.PreferencesPage({
-      title: 'Bindings',
+      title: 'Summons',
       icon_name: 'input-keyboard-symbolic',
     });
     window.add(page);
 
     this._bindingsGroup = new Adw.PreferencesGroup({
-      title: 'Window Bindings',
-      description: 'Each binding maps a keyboard shortcut to an application.',
+      title: 'Summons',
+      description: 'Each summon maps a keyboard shortcut to an application.',
     });
     page.add(this._bindingsGroup);
 
@@ -43,6 +43,41 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       if (this._settingsChangedId) {
         this._settings.disconnect(this._settingsChangedId);
         this._settingsChangedId = null;
+      }
+    });
+
+    // --- Wards page ---
+    const wardsPage = new Adw.PreferencesPage({
+      title: 'Wards',
+      icon_name: 'view-grid-symbolic',
+    });
+    window.add(wardsPage);
+
+    this._wardsGroup = new Adw.PreferencesGroup({
+      title: 'Wards',
+      description: 'Each ward defines a grid layout with keyboard shortcuts that snap windows into position.',
+    });
+    wardsPage.add(this._wardsGroup);
+
+    this._loadWards();
+
+    const addWardButton = new Gtk.Button({
+      label: 'Add Ward',
+      css_classes: ['suggested-action'],
+      halign: Gtk.Align.CENTER,
+      margin_top: 12,
+    });
+    addWardButton.connect('clicked', () => this._addWard());
+    this._wardsGroup.add(addWardButton);
+
+    this._wardsChangedId = this._settings.connect('changed::wards', () => {
+      if (!this._writingWards) this._loadWards();
+    });
+
+    window.connect('close-request', () => {
+      if (this._wardsChangedId) {
+        this._settings.disconnect(this._wardsChangedId);
+        this._wardsChangedId = null;
       }
     });
   }
@@ -220,6 +255,332 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       body: text,
     });
     dialog.add_response('ok', 'OK');
+    dialog.present(this._window);
+  }
+
+  // --- Wards helpers ---
+
+  _getWards() {
+    try {
+      return JSON.parse(this._settings.get_string('wards')) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  _saveWards(wards) {
+    this._writingWards = true;
+    this._settings.set_string('wards', JSON.stringify(wards));
+    this._writingWards = false;
+  }
+
+  _wardSubtitle(ward) {
+    return `${ward.cols}×${ward.rows}  ·  edge ${ward.edgeMargin}px  ·  gap ${ward.cellGap}px`;
+  }
+
+  _shortcutSubtitle(shortcutConfig) {
+    const n = shortcutConfig.positions.length;
+    return n === 1 ? '1 position' : `${n} positions (cycling)`;
+  }
+
+  _positionLabel(position) {
+    const c1 = Math.min(position.anchor.col, position.target.col);
+    const c2 = Math.max(position.anchor.col, position.target.col);
+    const r1 = Math.min(position.anchor.row, position.target.row);
+    const r2 = Math.max(position.anchor.row, position.target.row);
+    const colStr = c1 === c2 ? `col ${c1}` : `cols ${c1}–${c2}`;
+    const rowStr = r1 === r2 ? `row ${r1}` : `rows ${r1}–${r2}`;
+    return `${colStr}, ${rowStr}`;
+  }
+
+  _updateWard(wardIndex, field, value) {
+    const wards = this._getWards();
+    if (wardIndex < wards.length) {
+      wards[wardIndex][field] = value;
+      this._saveWards(wards);
+    }
+  }
+
+  _updateShortcut(wardIndex, shortcutIndex, field, value) {
+    const wards = this._getWards();
+    if (wardIndex < wards.length && shortcutIndex < wards[wardIndex].shortcuts.length) {
+      wards[wardIndex].shortcuts[shortcutIndex][field] = value;
+      this._saveWards(wards);
+    }
+  }
+
+  _addWard() {
+    const wards = this._getWards();
+    wards.push({ name: 'New Ward', cols: 6, rows: 4, edgeMargin: 0, cellGap: 0, shortcuts: [] });
+    this._saveWards(wards);
+    this._loadWards();
+  }
+
+  _addShortcut(wardIndex) {
+    const wards = this._getWards();
+    wards[wardIndex].shortcuts.push({ shortcut: '', positions: [] });
+    this._saveWards(wards);
+    this._loadWards();
+  }
+
+  _loadWards() {
+    let child = this._wardsGroup.get_first_child();
+    const toRemove = [];
+    while (child) {
+      if (child instanceof Adw.ExpanderRow) toRemove.push(child);
+      child = child.get_next_sibling();
+    }
+    toRemove.forEach(r => this._wardsGroup.remove(r));
+
+    const wards = this._getWards();
+    wards.forEach((ward, index) => {
+      this._wardsGroup.add(this._createWardCard(ward, index));
+    });
+  }
+
+  _createWardCard(ward, wardIndex) {
+    const card = new Adw.ExpanderRow({
+      title: ward.name || '(unnamed)',
+      subtitle: this._wardSubtitle(ward),
+    });
+
+    const nameRow = new Adw.EntryRow({ title: 'Name' });
+    nameRow.set_text(ward.name || '');
+    nameRow.connect('changed', () => {
+      this._updateWard(wardIndex, 'name', nameRow.get_text());
+      card.set_title(nameRow.get_text() || '(unnamed)');
+    });
+    card.add_row(nameRow);
+
+    const colsRow = new Adw.EntryRow({ title: 'Columns' });
+    colsRow.set_text(String(ward.cols));
+    colsRow.connect('changed', () => {
+      const v = parseInt(colsRow.get_text(), 10);
+      if (v > 0) {
+        this._updateWard(wardIndex, 'cols', v);
+        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+      }
+    });
+    card.add_row(colsRow);
+
+    const rowsRow = new Adw.EntryRow({ title: 'Rows' });
+    rowsRow.set_text(String(ward.rows));
+    rowsRow.connect('changed', () => {
+      const v = parseInt(rowsRow.get_text(), 10);
+      if (v > 0) {
+        this._updateWard(wardIndex, 'rows', v);
+        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+      }
+    });
+    card.add_row(rowsRow);
+
+    const edgeRow = new Adw.EntryRow({ title: 'Edge Margin (px)' });
+    edgeRow.set_text(String(ward.edgeMargin));
+    edgeRow.connect('changed', () => {
+      const v = parseInt(edgeRow.get_text(), 10);
+      if (!isNaN(v) && v >= 0) {
+        this._updateWard(wardIndex, 'edgeMargin', v);
+        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+      }
+    });
+    card.add_row(edgeRow);
+
+    const gapRow = new Adw.EntryRow({ title: 'Cell Gap (px)' });
+    gapRow.set_text(String(ward.cellGap));
+    gapRow.connect('changed', () => {
+      const v = parseInt(gapRow.get_text(), 10);
+      if (!isNaN(v) && v >= 0) {
+        this._updateWard(wardIndex, 'cellGap', v);
+        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+      }
+    });
+    card.add_row(gapRow);
+
+    ward.shortcuts.forEach((shortcutConfig, shortcutIndex) => {
+      card.add_row(this._createShortcutRow(wardIndex, shortcutConfig, shortcutIndex));
+    });
+
+    const addShortcutRow = new Adw.ActionRow();
+    const addShortcutBtn = new Gtk.Button({
+      label: '+ Add Shortcut',
+      css_classes: ['flat'],
+      halign: Gtk.Align.START,
+      margin_top: 6,
+      margin_bottom: 6,
+    });
+    addShortcutBtn.connect('clicked', () => this._addShortcut(wardIndex));
+    addShortcutRow.set_child(addShortcutBtn);
+    card.add_row(addShortcutRow);
+
+    const deleteRow = new Adw.ActionRow();
+    const deleteBtn = new Gtk.Button({
+      label: 'Delete Ward',
+      css_classes: ['destructive-action'],
+      halign: Gtk.Align.CENTER,
+      margin_top: 6,
+      margin_bottom: 6,
+    });
+    deleteBtn.connect('clicked', () => {
+      const wards = this._getWards();
+      wards.splice(wardIndex, 1);
+      this._saveWards(wards);
+      this._loadWards();
+    });
+    deleteRow.set_child(deleteBtn);
+    card.add_row(deleteRow);
+
+    return card;
+  }
+
+  _createShortcutRow(wardIndex, shortcutConfig, shortcutIndex) {
+    const row = new Adw.ExpanderRow({
+      title: shortcutConfig.shortcut || '(no shortcut)',
+      subtitle: this._shortcutSubtitle(shortcutConfig),
+    });
+
+    const shortcutEntry = new Adw.EntryRow({ title: 'Shortcut' });
+    shortcutEntry.set_text(shortcutConfig.shortcut || '');
+    shortcutEntry.connect('changed', () => {
+      this._updateShortcut(wardIndex, shortcutIndex, 'shortcut', shortcutEntry.get_text());
+      row.set_title(shortcutEntry.get_text() || '(no shortcut)');
+    });
+    row.add_row(shortcutEntry);
+
+    shortcutConfig.positions.forEach((position, positionIndex) => {
+      row.add_row(this._createPositionRow(wardIndex, shortcutIndex, position, positionIndex));
+    });
+
+    const addPosRow = new Adw.ActionRow();
+    const addPosBtn = new Gtk.Button({
+      label: '+ Add Position',
+      css_classes: ['flat'],
+      halign: Gtk.Align.START,
+      margin_top: 4,
+      margin_bottom: 4,
+    });
+    addPosBtn.connect('clicked', () => this._showPositionEditor(wardIndex, shortcutIndex, -1));
+    addPosRow.set_child(addPosBtn);
+    row.add_row(addPosRow);
+
+    const removeRow = new Adw.ActionRow();
+    const removeBtn = new Gtk.Button({
+      label: 'Remove Shortcut',
+      css_classes: ['destructive-action'],
+      halign: Gtk.Align.CENTER,
+      margin_top: 4,
+      margin_bottom: 4,
+    });
+    removeBtn.connect('clicked', () => {
+      const wards = this._getWards();
+      wards[wardIndex].shortcuts.splice(shortcutIndex, 1);
+      this._saveWards(wards);
+      this._loadWards();
+    });
+    removeRow.set_child(removeBtn);
+    row.add_row(removeRow);
+
+    return row;
+  }
+
+  _createPositionRow(wardIndex, shortcutIndex, position, positionIndex) {
+    const row = new Adw.ActionRow({
+      title: this._positionLabel(position),
+      activatable: false,
+    });
+
+    const editBtn = new Gtk.Button({
+      icon_name: 'document-edit-symbolic',
+      valign: Gtk.Align.CENTER,
+      css_classes: ['flat'],
+      tooltip_text: 'Edit position',
+    });
+    editBtn.connect('clicked', () => this._showPositionEditor(wardIndex, shortcutIndex, positionIndex));
+    row.add_suffix(editBtn);
+
+    const removeBtn = new Gtk.Button({
+      icon_name: 'list-remove-symbolic',
+      valign: Gtk.Align.CENTER,
+      css_classes: ['flat'],
+      tooltip_text: 'Remove position',
+    });
+    removeBtn.connect('clicked', () => {
+      const wards = this._getWards();
+      wards[wardIndex].shortcuts[shortcutIndex].positions.splice(positionIndex, 1);
+      this._saveWards(wards);
+      this._loadWards();
+    });
+    row.add_suffix(removeBtn);
+
+    return row;
+  }
+
+  _showPositionEditor(wardIndex, shortcutIndex, positionIndex) {
+    const wards = this._getWards();
+    const ward = wards[wardIndex];
+    const shortcut = ward.shortcuts[shortcutIndex];
+    const isEdit = positionIndex >= 0;
+    const existing = isEdit
+      ? shortcut.positions[positionIndex]
+      : { anchor: { col: 1, row: 1 }, target: { col: 1, row: 1 } };
+
+    const makeSpinner = (val, max) => new Gtk.SpinButton({
+      adjustment: new Gtk.Adjustment({
+        value: val,
+        lower: 1,
+        upper: max,
+        step_increment: 1,
+        page_increment: 1,
+      }),
+      numeric: true,
+      valign: Gtk.Align.CENTER,
+    });
+
+    const anchorColSpin = makeSpinner(existing.anchor.col, ward.cols);
+    const anchorRowSpin = makeSpinner(existing.anchor.row, ward.rows);
+    const targetColSpin = makeSpinner(existing.target.col, ward.cols);
+    const targetRowSpin = makeSpinner(existing.target.row, ward.rows);
+
+    const grid = new Gtk.Grid({
+      column_spacing: 12,
+      row_spacing: 8,
+      margin_top: 12,
+      margin_bottom: 4,
+    });
+    grid.attach(new Gtk.Label({ label: 'Anchor col', halign: Gtk.Align.START }), 0, 0, 1, 1);
+    grid.attach(anchorColSpin, 1, 0, 1, 1);
+    grid.attach(new Gtk.Label({ label: 'Anchor row', halign: Gtk.Align.START }), 0, 1, 1, 1);
+    grid.attach(anchorRowSpin, 1, 1, 1, 1);
+    grid.attach(new Gtk.Label({ label: 'Target col', halign: Gtk.Align.START }), 0, 2, 1, 1);
+    grid.attach(targetColSpin, 1, 2, 1, 1);
+    grid.attach(new Gtk.Label({ label: 'Target row', halign: Gtk.Align.START }), 0, 3, 1, 1);
+    grid.attach(targetRowSpin, 1, 3, 1, 1);
+
+    const dialog = new Adw.AlertDialog({
+      heading: isEdit ? 'Edit Position' : 'Add Position',
+      extra_child: grid,
+    });
+    dialog.add_response('cancel', 'Cancel');
+    dialog.add_response('confirm', isEdit ? 'Save' : 'Add');
+    dialog.set_default_response('confirm');
+    dialog.set_close_response('cancel');
+    dialog.set_response_appearance('confirm', Adw.ResponseAppearance.SUGGESTED);
+
+    dialog.connect('response', (_dialog, response) => {
+      if (response !== 'confirm') return;
+      const newPosition = {
+        anchor: { col: anchorColSpin.get_value_as_int(), row: anchorRowSpin.get_value_as_int() },
+        target: { col: targetColSpin.get_value_as_int(), row: targetRowSpin.get_value_as_int() },
+      };
+      const w2 = this._getWards();
+      if (isEdit) {
+        w2[wardIndex].shortcuts[shortcutIndex].positions[positionIndex] = newPosition;
+      } else {
+        w2[wardIndex].shortcuts[shortcutIndex].positions.push(newPosition);
+      }
+      this._saveWards(w2);
+      this._loadWards();
+    });
+
     dialog.present(this._window);
   }
 }
