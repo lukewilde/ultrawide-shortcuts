@@ -28,7 +28,8 @@ export default class WindowSummonerExtension extends Extension {
     this._actions = [];
     this._positionActions = [];
     this._launching = false;
-    this._presetCycleIndex = new Map(); // presetKey -> current cycle index
+    this._lastPreset = null; // { key, windowId, index }
+    this._presetTimerId = null;
 
     this._setupDbus();
     this._registerBindings();
@@ -51,9 +52,14 @@ export default class WindowSummonerExtension extends Extension {
 
     this._dbus.flush();
     this._dbus.unexport();
+    if (this._presetTimerId) {
+      GLib.source_remove(this._presetTimerId);
+      this._presetTimerId = null;
+    }
+
     this._dbus = null;
     this._settings = null;
-    this._presetCycleIndex = null;
+    this._lastPreset = null;
   }
 
   _setupDbus() {
@@ -157,15 +163,25 @@ export default class WindowSummonerExtension extends Extension {
     const presets = parsePositionPresets(presetStr);
     if (presets.length === 0) return;
 
-    // Reset cycle when window or shortcut changes
+    // Cycle only if same shortcut + same window as last press; otherwise reset
     const focusedId = focused.get_stable_sequence();
-    const lastState = this._presetCycleIndex.get(presetKey);
-    let lastIndex = -1;
-    if (lastState && lastState.windowId === focusedId) {
-      lastIndex = lastState.index;
+    let nextIndex = 0;
+    if (this._lastPreset &&
+        this._lastPreset.key === presetKey &&
+        this._lastPreset.windowId === focusedId) {
+      nextIndex = (this._lastPreset.index + 1) % presets.length;
     }
-    const nextIndex = (lastIndex + 1) % presets.length;
-    this._presetCycleIndex.set(presetKey, { index: nextIndex, windowId: focusedId });
+    this._lastPreset = { key: presetKey, windowId: focusedId, index: nextIndex };
+
+    // Reset cycle after 1 second of inactivity
+    if (this._presetTimerId) {
+      GLib.source_remove(this._presetTimerId);
+    }
+    this._presetTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+      this._lastPreset = null;
+      this._presetTimerId = null;
+      return GLib.SOURCE_REMOVE;
+    });
 
     const { gridSize, selection } = presets[nextIndex];
     const monitorIdx = focused.get_monitor();
