@@ -110,14 +110,13 @@ export default class WindowSummonerExtension extends Extension {
       this._settings.disconnect(this._settingsChangedId);
       this._settingsChangedId = null;
     }
-
-    this._unregisterBindings();
-    this._unregisterWards();
-
     if (this._wardsChangedId) {
       this._settings.disconnect(this._wardsChangedId);
       this._wardsChangedId = null;
     }
+
+    this._unregisterBindings();
+    this._unregisterWards();
 
     this._dbus.flush();
     this._dbus.unexport();
@@ -260,6 +259,7 @@ export default class WindowSummonerExtension extends Extension {
 
     // Convert 1-indexed storage coords to 0-indexed for gridToPixels
     const pos = shortcutConfig.positions[nextIndex];
+    if (!pos?.anchor || !pos?.target) return;
     const selection = {
       anchor: { col: pos.anchor.col - 1, row: pos.anchor.row - 1 },
       target: { col: pos.target.col - 1, row: pos.target.row - 1 },
