@@ -9,5 +9,17 @@
       <description>JSON array of objects with: shortcut (accelerator string), wmClass (case-insensitive substring match), command (launch command)</description>
     </key>
 
+    <key type="s" name="wards">
+      <default>'[]'</default>
+      <summary>Ward layout definitions</summary>
+      <description>
+        JSON array of ward objects. Each ward has: name (string), cols (int),
+        rows (int), edgeMargin (int px), cellGap (int px), and shortcuts
+        (array of {shortcut: string, positions: [{anchor, target}]}).
+        anchor and target are {col, row} with 1-indexed values.
+        When empty ([]), extension.js uses the built-in default ward.
+      </description>
+    </key>
+
   </schema>
 </schemalist>
