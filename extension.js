@@ -4,14 +4,35 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { gridToPixels, parsePositionPresets } from './positioning.js';
+
+// Position presets for Alt+Super+1-9 (matches gTile config).
+// Each entry: [shortcut, presetString]
+// Preset strings use gTile format: "COLSxROWS COL:ROW COL:ROW, ..."
+// Comma-separated presets cycle on repeated presses.
+const POSITION_PRESETS = [
+  ['<Alt><Super>1', '16x1 1:1 4:1, 1:1 3:1'],
+  ['<Alt><Super>2', '16x1 4:1 8:1, 5:1 12:1'],
+  ['<Alt><Super>3', '16x1 13:1 16:1, 14:1 16:1'],
+  ['<Alt><Super>4', '16x1 1:1 8:1, 1:1 12:1'],
+  ['<Alt><Super>5', '16x1 5:1 12:1, 4:1 13:1'],
+  ['<Alt><Super>6', '16x1 9:1 16:1, 5:1 16:1'],
+  ['<Alt><Super>7', '16x1 1:1 3:1'],
+  ['<Alt><Super>8', '16x1 9:1 13:1, 5:1 12:1'],
+  ['<Alt><Super>9', '16x1 14:1 16:1'],
+];
+
 export default class GnomeMagicWindowExtension extends Extension {
   enable() {
     this._settings = this.getSettings();
     this._actions = [];
+    this._positionActions = [];
     this._launching = false;
+    this._presetCycleIndex = new Map(); // presetKey -> current cycle index
 
     this._setupDbus();
     this._registerBindings();
+    this._registerPositionPresets();
 
     this._settingsChangedId = this._settings.connect('changed::bindings', () => {
       this._unregisterBindings();
@@ -26,11 +47,13 @@ export default class GnomeMagicWindowExtension extends Extension {
     }
 
     this._unregisterBindings();
+    this._unregisterPositionPresets();
 
     this._dbus.flush();
     this._dbus.unexport();
     this._dbus = null;
     this._settings = null;
+    this._presetCycleIndex = null;
   }
 
   _setupDbus() {
@@ -48,6 +71,8 @@ export default class GnomeMagicWindowExtension extends Extension {
       </node>`, this);
     this._dbus.export(Gio.DBus.session, '/org/gnome/Shell/Extensions/GnomeMagicWindow');
   }
+
+  // --- App focus/launch bindings (from GSettings) ---
 
   _getBindings() {
     try {
@@ -93,6 +118,78 @@ export default class GnomeMagicWindowExtension extends Extension {
     }
     this._actions = [];
   }
+
+  // --- Position presets (snap focused window to grid) ---
+
+  _registerPositionPresets() {
+    for (const [shortcut, presetStr] of POSITION_PRESETS) {
+      const action = global.display.grab_accelerator(shortcut, 0);
+      if (action === Meta.KeyBindingAction.NONE) continue;
+
+      const handlerId = global.display.connect(
+        'accelerator-activated',
+        (_display, activatedAction, _deviceId, _timestamp) => {
+          if (activatedAction === action) {
+            this._applyPositionPreset(shortcut, presetStr);
+          }
+        }
+      );
+
+      const name = Meta.external_binding_name_for_action(action);
+      Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+
+      this._positionActions.push({ action, handlerId });
+    }
+  }
+
+  _unregisterPositionPresets() {
+    for (const { action, handlerId } of this._positionActions) {
+      global.display.disconnect(handlerId);
+      global.display.ungrab_accelerator(action);
+    }
+    this._positionActions = [];
+  }
+
+  _applyPositionPreset(presetKey, presetStr) {
+    const focused = global.display.focus_window;
+    if (!focused) return;
+
+    const presets = parsePositionPresets(presetStr);
+    if (presets.length === 0) return;
+
+    // Reset cycle when window or shortcut changes
+    const focusedId = focused.get_stable_sequence();
+    const lastState = this._presetCycleIndex.get(presetKey);
+    let lastIndex = -1;
+    if (lastState && lastState.windowId === focusedId) {
+      lastIndex = lastState.index;
+    }
+    const nextIndex = (lastIndex + 1) % presets.length;
+    this._presetCycleIndex.set(presetKey, { index: nextIndex, windowId: focusedId });
+
+    const { gridSize, selection } = presets[nextIndex];
+    const monitorIdx = focused.get_monitor();
+    const workspace = global.workspace_manager.get_active_workspace();
+    const workArea = workspace.get_work_area_for_monitor(monitorIdx);
+
+    const rect = gridToPixels(selection, gridSize, {
+      x: workArea.x,
+      y: workArea.y,
+      width: workArea.width,
+      height: workArea.height,
+    });
+
+    focused.unmaximize();
+    focused.move_resize_frame(
+      false,
+      Math.round(rect.x),
+      Math.round(rect.y),
+      Math.round(rect.width),
+      Math.round(rect.height)
+    );
+  }
+
+  // --- Window helpers ---
 
   _getWindows() {
     return global.get_window_actors()
@@ -140,6 +237,7 @@ export default class GnomeMagicWindowExtension extends Extension {
           GLib.spawn_command_line_async(command);
         } catch (e) {
           console.error(`gnome-magic-window: failed to launch '${command}': ${e.message}`);
+          Main.notify('Magic Window', `Failed to launch: ${command}\n${e.message}`);
         }
       }
     } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {
