@@ -281,10 +281,55 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     return `${ward.cols}×${ward.rows}  ·  edge ${ward.edgeMargin}px  ·  gap ${ward.cellGap}px`;
   }
 
-  _shortcutSubtitle(shortcutConfig) {
-    const n = shortcutConfig.positions.length;
-    if (n === 0) return 'No positions';
-    return n === 1 ? '1 position' : `${n} positions (cycling)`;
+  _positionSummary(ward, positions) {
+    if (positions.length === 0) return 'No positions';
+    return positions.map(pos => {
+      const c1 = Math.min(pos.anchor.col, pos.target.col);
+      const c2 = Math.max(pos.anchor.col, pos.target.col);
+      const r1 = Math.min(pos.anchor.row, pos.target.row);
+      const r2 = Math.max(pos.anchor.row, pos.target.row);
+      const colPart = c1 === c2 ? `c${c1}` : `c${c1}–${c2}`;
+      if (ward.rows === 1) return colPart;
+      const rowPart = r1 === r2 ? `r${r1}` : `r${r1}–${r2}`;
+      return `${colPart} ${rowPart}`;
+    }).join(' · ');
+  }
+
+  _makePairRow(title, s1, s2) {
+    const row = new Adw.ActionRow({ title });
+
+    const makeSpin = ({ label, value, min, max, onChanged }) => {
+      const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        valign: Gtk.Align.CENTER,
+        spacing: 2,
+        margin_start: 8,
+      });
+      box.append(new Gtk.Label({
+        label,
+        css_classes: ['caption'],
+        halign: Gtk.Align.CENTER,
+      }));
+      const spin = new Gtk.SpinButton({
+        adjustment: new Gtk.Adjustment({
+          value,
+          lower: min,
+          upper: max,
+          step_increment: 1,
+          page_increment: 10,
+        }),
+        numeric: true,
+        width_chars: 4,
+        valign: Gtk.Align.CENTER,
+      });
+      spin.connect('value-changed', () => onChanged(spin.get_value_as_int()));
+      box.append(spin);
+      return box;
+    };
+
+    row.add_suffix(makeSpin(s1));
+    row.add_suffix(makeSpin(s2));
+    return row;
   }
 
   _positionLabel(position) {
@@ -358,52 +403,42 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     });
     card.add_row(nameRow);
 
-    const colsRow = new Adw.EntryRow({ title: 'Columns' });
-    colsRow.set_text(String(ward.cols));
-    colsRow.connect('changed', () => {
-      const v = parseInt(colsRow.get_text(), 10);
-      if (v > 0) {
-        this._updateWard(wardIndex, 'cols', v);
-        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+    card.add_row(this._makePairRow('Grid size',
+      {
+        label: 'Cols', value: ward.cols, min: 1, max: 100,
+        onChanged: v => {
+          this._updateWard(wardIndex, 'cols', v);
+          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+        },
+      },
+      {
+        label: 'Rows', value: ward.rows, min: 1, max: 100,
+        onChanged: v => {
+          this._updateWard(wardIndex, 'rows', v);
+          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+        },
       }
-    });
-    card.add_row(colsRow);
+    ));
 
-    const rowsRow = new Adw.EntryRow({ title: 'Rows' });
-    rowsRow.set_text(String(ward.rows));
-    rowsRow.connect('changed', () => {
-      const v = parseInt(rowsRow.get_text(), 10);
-      if (v > 0) {
-        this._updateWard(wardIndex, 'rows', v);
-        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+    card.add_row(this._makePairRow('Margins',
+      {
+        label: 'Edge (px)', value: ward.edgeMargin, min: 0, max: 500,
+        onChanged: v => {
+          this._updateWard(wardIndex, 'edgeMargin', v);
+          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+        },
+      },
+      {
+        label: 'Gap (px)', value: ward.cellGap, min: 0, max: 500,
+        onChanged: v => {
+          this._updateWard(wardIndex, 'cellGap', v);
+          card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
+        },
       }
-    });
-    card.add_row(rowsRow);
-
-    const edgeRow = new Adw.EntryRow({ title: 'Edge Margin (px)' });
-    edgeRow.set_text(String(ward.edgeMargin));
-    edgeRow.connect('changed', () => {
-      const v = parseInt(edgeRow.get_text(), 10);
-      if (!isNaN(v) && v >= 0) {
-        this._updateWard(wardIndex, 'edgeMargin', v);
-        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
-      }
-    });
-    card.add_row(edgeRow);
-
-    const gapRow = new Adw.EntryRow({ title: 'Cell Gap (px)' });
-    gapRow.set_text(String(ward.cellGap));
-    gapRow.connect('changed', () => {
-      const v = parseInt(gapRow.get_text(), 10);
-      if (!isNaN(v) && v >= 0) {
-        this._updateWard(wardIndex, 'cellGap', v);
-        card.set_subtitle(this._wardSubtitle(this._getWards()[wardIndex]));
-      }
-    });
-    card.add_row(gapRow);
+    ));
 
     ward.shortcuts.forEach((shortcutConfig, shortcutIndex) => {
-      card.add_row(this._createShortcutRow(wardIndex, shortcutConfig, shortcutIndex));
+      card.add_row(this._createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex));
     });
 
     const addShortcutRow = new Adw.ActionRow();
@@ -438,10 +473,10 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     return card;
   }
 
-  _createShortcutRow(wardIndex, shortcutConfig, shortcutIndex) {
+  _createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex) {
     const row = new Adw.ExpanderRow({
       title: shortcutConfig.shortcut || '(no shortcut)',
-      subtitle: this._shortcutSubtitle(shortcutConfig),
+      subtitle: this._positionSummary(ward, shortcutConfig.positions),
     });
 
     const shortcutEntry = new Adw.EntryRow({ title: 'Shortcut' });
