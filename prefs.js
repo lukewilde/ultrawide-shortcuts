@@ -494,14 +494,23 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     });
     row.add_row(shortcutEntry);
 
-    const posEntry = new Adw.EntryRow({ title: 'Positions' });
+    const posEntry = new Adw.EntryRow({ title: 'Positions (col:row col:row, …)' });
     posEntry.set_text(this._positionsToText(shortcutConfig.positions));
     posEntry.connect('changed', () => {
       const text = posEntry.get_text().trim();
-      const positions = text === '' ? [] : this._textToPositions(text);
-      if (text === '' || positions.length > 0) {
+      if (text === '') {
+        posEntry.remove_css_class('error');
+        this._updateShortcut(wardIndex, shortcutIndex, 'positions', []);
+        row.set_subtitle(this._positionSummary(ward, []));
+        return;
+      }
+      const positions = this._textToPositions(text);
+      if (positions.length > 0) {
+        posEntry.remove_css_class('error');
         this._updateShortcut(wardIndex, shortcutIndex, 'positions', positions);
         row.set_subtitle(this._positionSummary(ward, positions));
+      } else {
+        posEntry.add_css_class('error');
       }
     });
     row.add_row(posEntry);
