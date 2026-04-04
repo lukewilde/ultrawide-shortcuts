@@ -79,9 +79,37 @@ Each binding object has: `shortcut`, `wmClass`, `command`.
 Config changes via prefs UI or dconf take effect immediately (bindings re-register on settings change).
 Schema changes require `glib-compile-schemas schemas/` + session restart.
 
+Wards are stored as a JSON string in GSettings key `wards` at path
+`/org/gnome/shell/extensions/window-summoner/wards`.
+
+Each ward object has: `name`, `cols`, `rows`, `edgeMargin` (px), `cellGap` (px), `shortcuts[]`.
+Each shortcut has: `shortcut` (GTK accelerator string), `positions[]`.
+Each position has: `anchor: {col, row}`, `target: {col, row}` — **1-indexed in storage**.
+
+`gridToPixels()` takes **0-indexed** coords — subtract 1 from storage values before calling.
+`DEFAULT_WARD` in `extension.js` is the runtime fallback when the `wards` key is empty or invalid.
+
+Positions text format (prefs UI and `_textToPositions`/`_positionsToText`):
+`"col:row col:row, col:row col:row"` — each comma-separated pair is one cycling position.
+
 ## Conventions
 
 - All keyboard shortcuts use `<Shift><Alt><Ctrl>` + letter prefix
 - Window matching is case-insensitive substring on WM class
 - Debug output written to `/tmp/window-summoner-debug`
 - Extension exposes D-Bus interface at `org.gnome.Shell.Extensions.WindowSummoner`
+
+### prefs.js patterns
+- `_writing` / `_writingWards` flags suppress the GSettings `changed::` signal handler during saves
+  to prevent a reload loop (prefs writes → signal fires → prefs reloads).
+- Use GTK `error` CSS class (`widget.add_css_class('error')`) for inline validation feedback.
+- Expanded-state preservation: capture `row.get_expanded()` before `_loadWards()`/`_loadBindings()`
+  and restore after rebuild — see `_loadWards` for the pattern.
+
+### Dead code
+- `parsePositionPresets` in `positioning.js` is no longer called — the wards system supersedes it.
+  Do not extend or rely on it; remove it when convenient.
+
+### Useful dconf commands for dev/testing
+- `dconf read /org/gnome/shell/extensions/window-summoner/wards` — inspect current wards JSON
+- `dconf write /org/gnome/shell/extensions/window-summoner/wards "'[...]'"` — set value directly
