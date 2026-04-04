@@ -11,13 +11,13 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     window.set_default_size(700, 600);
 
     const page = new Adw.PreferencesPage({
-      title: 'Summons',
+      title: 'App Summons',
       icon_name: 'input-keyboard-symbolic',
     });
     window.add(page);
 
     this._bindingsGroup = new Adw.PreferencesGroup({
-      title: 'Summons',
+      title: 'App Summons',
       description: 'Each summon maps a keyboard shortcut to an application.',
     });
     page.add(this._bindingsGroup);
@@ -26,7 +26,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
 
     // Add binding button
     const addButton = new Gtk.Button({
-      label: 'Add Summon',
+      label: 'Add App Summon',
       css_classes: ['suggested-action'],
       halign: Gtk.Align.CENTER,
       margin_top: 12,
@@ -46,32 +46,32 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       }
     });
 
-    // --- Wards page ---
-    const wardsPage = new Adw.PreferencesPage({
-      title: 'Wards',
+    // --- Window Positions page ---
+    this._wardsPage = new Adw.PreferencesPage({
+      title: 'Window Positions',
       icon_name: 'view-grid-symbolic',
     });
-    window.add(wardsPage);
+    window.add(this._wardsPage);
 
     this._wardsGroup = new Adw.PreferencesGroup({
-      title: 'Wards',
-      description: 'Each ward defines a grid layout with keyboard shortcuts that snap windows into position.',
+      title: 'Window Positions',
+      description: 'Each window position defines a grid layout with keyboard shortcuts that snap windows into position.',
     });
-    wardsPage.add(this._wardsGroup);
+    this._wardsPage.add(this._wardsGroup);
 
     this._loadWards();
 
-    // Add Ward button in separate group (prevents inversion on reload)
+    // Add Window Position button in separate group (prevents inversion on reload)
     const addWardGroup = new Adw.PreferencesGroup();
     const addWardButton = new Gtk.Button({
-      label: 'Add Ward',
+      label: 'Add Window Position',
       css_classes: ['suggested-action'],
       halign: Gtk.Align.CENTER,
       margin_top: 12,
     });
     addWardButton.connect('clicked', () => this._addWard());
     addWardGroup.add(addWardButton);
-    wardsPage.add(addWardGroup);
+    this._wardsPage.add(addWardGroup);
 
     this._wardsChangedId = this._settings.connect('changed::wards', () => {
       if (!this._writingWards) this._loadWards();
@@ -315,7 +315,6 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       }));
       const spin = new Gtk.SpinButton({
         adjustment: new Gtk.Adjustment({
-          value,
           lower: min,
           upper: max,
           step_increment: 1,
@@ -325,6 +324,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
         width_chars: 4,
         valign: Gtk.Align.CENTER,
       });
+      spin.set_value(value);
       spin.connect('value-changed', () => onChanged(spin.get_value_as_int()));
       box.append(spin);
       return box;
@@ -385,6 +385,14 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     }
   }
 
+  _getWardsScrollAdj() {
+    let child = this._wardsPage.get_first_child();
+    while (child && !(child instanceof Gtk.ScrolledWindow)) {
+      child = child.get_first_child();
+    }
+    return child?.get_vadjustment() ?? null;
+  }
+
   _loadWards() {
     const wardStates = this._wardRows
       ? this._wardRows.map(card => ({
@@ -392,6 +400,9 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
           shortcutStates: (card._shortcutRows || []).map(r => r.get_expanded()),
         }))
       : [];
+
+    const adj = this._getWardsScrollAdj();
+    const scrollPos = adj?.get_value() ?? 0;
 
     if (this._wardRows) {
       this._wardRows.forEach(r => this._wardsGroup.remove(r));
@@ -411,6 +422,13 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       this._wardsGroup.add(row);
       this._wardRows.push(row);
     });
+
+    if (adj && scrollPos > 0) {
+      GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+        adj.set_value(scrollPos);
+        return GLib.SOURCE_REMOVE;
+      });
+    }
   }
 
   _createWardCard(ward, wardIndex) {
@@ -426,6 +444,23 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       card.set_title(nameRow.get_text() || '(unnamed)');
     });
     card.add_row(nameRow);
+
+    const deleteRow = new Adw.ActionRow();
+    const deleteBtn = new Gtk.Button({
+      label: 'Delete Window Position',
+      css_classes: ['destructive-action'],
+      halign: Gtk.Align.CENTER,
+      margin_top: 6,
+      margin_bottom: 6,
+    });
+    deleteBtn.connect('clicked', () => {
+      const wards = this._getWards();
+      wards.splice(wardIndex, 1);
+      this._saveWards(wards);
+      this._loadWards();
+    });
+    deleteRow.set_child(deleteBtn);
+    card.add_row(deleteRow);
 
     card.add_row(this._makePairRow('Grid size',
       {
@@ -461,6 +496,10 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       }
     ));
 
+    const shortcutsHeader = new Adw.ActionRow({ title: 'Shortcuts' });
+    shortcutsHeader.set_activatable(false);
+    card.add_row(shortcutsHeader);
+
     card._shortcutRows = [];
     ward.shortcuts.forEach((shortcutConfig, shortcutIndex) => {
       const sr = this._createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex);
@@ -479,23 +518,6 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     addShortcutBtn.connect('clicked', () => this._addShortcut(wardIndex));
     addShortcutRow.set_child(addShortcutBtn);
     card.add_row(addShortcutRow);
-
-    const deleteRow = new Adw.ActionRow();
-    const deleteBtn = new Gtk.Button({
-      label: 'Delete Ward',
-      css_classes: ['destructive-action'],
-      halign: Gtk.Align.CENTER,
-      margin_top: 6,
-      margin_bottom: 6,
-    });
-    deleteBtn.connect('clicked', () => {
-      const wards = this._getWards();
-      wards.splice(wardIndex, 1);
-      this._saveWards(wards);
-      this._loadWards();
-    });
-    deleteRow.set_child(deleteBtn);
-    card.add_row(deleteRow);
 
     return card;
   }
