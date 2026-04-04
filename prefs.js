@@ -100,18 +100,21 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
   }
 
   _loadBindings() {
-    // Remove all existing rows (except the add button)
-    let child = this._bindingsGroup.get_first_child();
-    const toRemove = [];
-    while (child) {
-      if (child instanceof Adw.ExpanderRow) toRemove.push(child);
-      child = child.get_next_sibling();
+    const expandedStates = this._bindingRows
+      ? this._bindingRows.map(r => r.get_expanded())
+      : [];
+
+    if (this._bindingRows) {
+      this._bindingRows.forEach(r => this._bindingsGroup.remove(r));
     }
-    toRemove.forEach(r => this._bindingsGroup.remove(r));
+    this._bindingRows = [];
 
     const bindings = this._getBindings();
     bindings.forEach((binding, index) => {
-      this._bindingsGroup.add(this._createBindingRow(binding, index));
+      const row = this._createBindingRow(binding, index);
+      if (expandedStates[index]) row.set_expanded(true);
+      this._bindingsGroup.add(row);
+      this._bindingRows.push(row);
     });
   }
 
@@ -383,17 +386,30 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
   }
 
   _loadWards() {
-    let child = this._wardsGroup.get_first_child();
-    const toRemove = [];
-    while (child) {
-      if (child instanceof Adw.ExpanderRow) toRemove.push(child);
-      child = child.get_next_sibling();
+    const wardStates = this._wardRows
+      ? this._wardRows.map(card => ({
+          expanded: card.get_expanded(),
+          shortcutStates: (card._shortcutRows || []).map(r => r.get_expanded()),
+        }))
+      : [];
+
+    if (this._wardRows) {
+      this._wardRows.forEach(r => this._wardsGroup.remove(r));
     }
-    toRemove.forEach(r => this._wardsGroup.remove(r));
+    this._wardRows = [];
 
     const wards = this._getWards();
     wards.forEach((ward, index) => {
-      this._wardsGroup.add(this._createWardCard(ward, index));
+      const row = this._createWardCard(ward, index);
+      const state = wardStates[index];
+      if (state?.expanded) {
+        row.set_expanded(true);
+        (row._shortcutRows || []).forEach((sr, si) => {
+          if (state.shortcutStates[si]) sr.set_expanded(true);
+        });
+      }
+      this._wardsGroup.add(row);
+      this._wardRows.push(row);
     });
   }
 
@@ -445,8 +461,11 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       }
     ));
 
+    card._shortcutRows = [];
     ward.shortcuts.forEach((shortcutConfig, shortcutIndex) => {
-      card.add_row(this._createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex));
+      const sr = this._createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex);
+      card._shortcutRows.push(sr);
+      card.add_row(sr);
     });
 
     const addShortcutRow = new Adw.ActionRow();
