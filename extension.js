@@ -4,23 +4,80 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels, parsePositionPresets } from './positioning.js';
+import { gridToPixels } from './positioning.js';
 
-// Position presets for Alt+Super+1-9 (matches gTile config).
-// Each entry: [shortcut, presetString]
-// Preset strings use gTile format: "COLSxROWS COL:ROW COL:ROW, ..."
-// Comma-separated presets cycle on repeated presses.
-const POSITION_PRESETS = [
-  ['<Alt><Super>1', '16x1 1:1 4:1, 1:1 3:1'],
-  ['<Alt><Super>2', '16x1 4:1 8:1, 5:1 12:1'],
-  ['<Alt><Super>3', '16x1 13:1 16:1, 14:1 16:1'],
-  ['<Alt><Super>4', '16x1 1:1 8:1, 1:1 12:1'],
-  ['<Alt><Super>5', '16x1 5:1 12:1, 4:1 13:1'],
-  ['<Alt><Super>6', '16x1 9:1 16:1, 5:1 16:1'],
-  ['<Alt><Super>7', '16x1 1:1 3:1'],
-  ['<Alt><Super>8', '16x1 9:1 13:1, 5:1 12:1'],
-  ['<Alt><Super>9', '16x1 14:1 16:1'],
-];
+// Built-in default ward — re-expresses the original 9 Alt+Super position presets.
+// Used when the 'wards' GSettings key is empty.
+const DEFAULT_WARD = {
+  name: 'Default',
+  cols: 16,
+  rows: 1,
+  edgeMargin: 0,
+  cellGap: 0,
+  shortcuts: [
+    {
+      shortcut: '<Alt><Super>1',
+      positions: [
+        { anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } },
+        { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>2',
+      positions: [
+        { anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } },
+        { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>3',
+      positions: [
+        { anchor: { col: 13, row: 1 }, target: { col: 16, row: 1 } },
+        { anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>4',
+      positions: [
+        { anchor: { col: 1, row: 1 }, target: { col: 8, row: 1 } },
+        { anchor: { col: 1, row: 1 }, target: { col: 12, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>5',
+      positions: [
+        { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } },
+        { anchor: { col: 4, row: 1 }, target: { col: 13, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>6',
+      positions: [
+        { anchor: { col: 9, row: 1 }, target: { col: 16, row: 1 } },
+        { anchor: { col: 5, row: 1 }, target: { col: 16, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>7',
+      positions: [
+        { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>8',
+      positions: [
+        { anchor: { col: 9, row: 1 }, target: { col: 13, row: 1 } },
+        { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } },
+      ],
+    },
+    {
+      shortcut: '<Alt><Super>9',
+      positions: [
+        { anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } },
+      ],
+    },
+  ],
+};
 
 export default class WindowSummonerExtension extends Extension {
   enable() {
@@ -31,13 +88,20 @@ export default class WindowSummonerExtension extends Extension {
     this._lastPreset = null; // { key, windowId, index }
     this._presetTimerId = null;
 
+    this._wardsChangedId = null;
+
     this._setupDbus();
     this._registerBindings();
-    this._registerPositionPresets();
+    this._registerWards();
 
     this._settingsChangedId = this._settings.connect('changed::bindings', () => {
       this._unregisterBindings();
       this._registerBindings();
+    });
+
+    this._wardsChangedId = this._settings.connect('changed::wards', () => {
+      this._unregisterWards();
+      this._registerWards();
     });
   }
 
@@ -48,7 +112,12 @@ export default class WindowSummonerExtension extends Extension {
     }
 
     this._unregisterBindings();
-    this._unregisterPositionPresets();
+    this._unregisterWards();
+
+    if (this._wardsChangedId) {
+      this._settings.disconnect(this._wardsChangedId);
+      this._wardsChangedId = null;
+    }
 
     this._dbus.flush();
     this._dbus.unexport();
@@ -125,30 +194,42 @@ export default class WindowSummonerExtension extends Extension {
     this._actions = [];
   }
 
-  // --- Position presets (snap focused window to grid) ---
+  // --- Wards (snap focused window to grid) ---
 
-  _registerPositionPresets() {
-    for (const [shortcut, presetStr] of POSITION_PRESETS) {
-      const action = global.display.grab_accelerator(shortcut, 0);
-      if (action === Meta.KeyBindingAction.NONE) continue;
-
-      const handlerId = global.display.connect(
-        'accelerator-activated',
-        (_display, activatedAction, _deviceId, _timestamp) => {
-          if (activatedAction === action) {
-            this._applyPositionPreset(shortcut, presetStr);
-          }
-        }
-      );
-
-      const name = Meta.external_binding_name_for_action(action);
-      Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
-
-      this._positionActions.push({ action, handlerId });
+  _getWards() {
+    try {
+      const parsed = JSON.parse(this._settings.get_string('wards'));
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_WARD];
+    } catch (e) {
+      console.error(`window-summoner: failed to parse wards: ${e.message}`);
+      return [DEFAULT_WARD];
     }
   }
 
-  _unregisterPositionPresets() {
+  _registerWards() {
+    const wards = this._getWards();
+    for (const ward of wards) {
+      for (const shortcutConfig of ward.shortcuts) {
+        if (!shortcutConfig.shortcut) continue;
+        const action = global.display.grab_accelerator(shortcutConfig.shortcut, 0);
+        if (action === Meta.KeyBindingAction.NONE) continue;
+
+        const handlerId = global.display.connect(
+          'accelerator-activated',
+          (_display, activatedAction, _deviceId, _timestamp) => {
+            if (activatedAction === action)
+              this._applyWardShortcut(ward, shortcutConfig);
+          }
+        );
+
+        const name = Meta.external_binding_name_for_action(action);
+        Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+        this._positionActions.push({ action, handlerId });
+      }
+    }
+  }
+
+  _unregisterWards() {
     for (const { action, handlerId } of this._positionActions) {
       global.display.disconnect(handlerId);
       global.display.ungrab_accelerator(action);
@@ -156,44 +237,47 @@ export default class WindowSummonerExtension extends Extension {
     this._positionActions = [];
   }
 
-  _applyPositionPreset(presetKey, presetStr) {
+  _applyWardShortcut(ward, shortcutConfig) {
     const focused = global.display.focus_window;
-    if (!focused) return;
+    if (!focused || !shortcutConfig.positions.length) return;
 
-    const presets = parsePositionPresets(presetStr);
-    if (presets.length === 0) return;
-
-    // Cycle only if same shortcut + same window as last press; otherwise reset
+    // Cycle: same shortcut + same window within 1s advances index
     const focusedId = focused.get_stable_sequence();
     let nextIndex = 0;
     if (this._lastPreset &&
-        this._lastPreset.key === presetKey &&
+        this._lastPreset.key === shortcutConfig.shortcut &&
         this._lastPreset.windowId === focusedId) {
-      nextIndex = (this._lastPreset.index + 1) % presets.length;
+      nextIndex = (this._lastPreset.index + 1) % shortcutConfig.positions.length;
     }
-    this._lastPreset = { key: presetKey, windowId: focusedId, index: nextIndex };
+    this._lastPreset = { key: shortcutConfig.shortcut, windowId: focusedId, index: nextIndex };
 
-    // Reset cycle after 1 second of inactivity
-    if (this._presetTimerId) {
-      GLib.source_remove(this._presetTimerId);
-    }
+    if (this._presetTimerId) GLib.source_remove(this._presetTimerId);
     this._presetTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
       this._lastPreset = null;
       this._presetTimerId = null;
       return GLib.SOURCE_REMOVE;
     });
 
-    const { gridSize, selection } = presets[nextIndex];
+    // Convert 1-indexed storage coords to 0-indexed for gridToPixels
+    const pos = shortcutConfig.positions[nextIndex];
+    const selection = {
+      anchor: { col: pos.anchor.col - 1, row: pos.anchor.row - 1 },
+      target: { col: pos.target.col - 1, row: pos.target.row - 1 },
+    };
+
     const monitorIdx = focused.get_monitor();
     const workspace = global.workspace_manager.get_active_workspace();
-    const workArea = workspace.get_work_area_for_monitor(monitorIdx);
+    const wa = workspace.get_work_area_for_monitor(monitorIdx);
 
-    const rect = gridToPixels(selection, gridSize, {
-      x: workArea.x,
-      y: workArea.y,
-      width: workArea.width,
-      height: workArea.height,
-    });
+    // Apply edgeMargin by shrinking the work area
+    const workArea = {
+      x: wa.x + ward.edgeMargin,
+      y: wa.y + ward.edgeMargin,
+      width: wa.width - 2 * ward.edgeMargin,
+      height: wa.height - 2 * ward.edgeMargin,
+    };
+
+    const rect = gridToPixels(selection, { cols: ward.cols, rows: ward.rows }, workArea, ward.cellGap);
 
     focused.unmaximize();
     focused.move_resize_frame(
