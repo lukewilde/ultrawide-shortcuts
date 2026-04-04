@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.window-summoner"
+          path="/org/gnome/shell/extensions/window-summoner/">
+
+    <key type="s" name="bindings">
+      <default><![CDATA['[{"shortcut":"<Shift><Alt><Ctrl>x","wmClass":"TextEditor","command":"/usr/bin/gnome-text-editor"},{"shortcut":"<Shift><Alt><Ctrl>c","wmClass":"Steam","command":"steam"},{"shortcut":"<Shift><Alt><Ctrl>d","wmClass":"","command":""},{"shortcut":"<Shift><Alt><Ctrl>r","wmClass":"kitty","command":"/home/wilde/.local/kitty.app/bin/kitty"},{"shortcut":"<Shift><Alt><Ctrl>s","wmClass":"Code","command":"code"},{"shortcut":"<Shift><Alt><Ctrl>t","wmClass":"Chrome","command":"flatpak run com.google.Chrome"},{"shortcut":"<Shift><Alt><Ctrl>w","wmClass":"FFPWA-01JX8K6PER4CNATQKDZEEK5XNH","command":"/usr/bin/firefoxpwa site launch 01JX8K6PER4CNATQKDZEEK5XNH"},{"shortcut":"<Shift><Alt><Ctrl>f","wmClass":"","command":""},{"shortcut":"<Shift><Alt><Ctrl>p","wmClass":"Spotify","command":"spotify"}]']]></default>
+      <summary>Window binding configuration</summary>
+      <description>JSON array of objects with: shortcut (accelerator string), wmClass (case-insensitive substring match), command (launch command)</description>
+    </key>
+
+  </schema>
+</schemalist>
