@@ -6,78 +6,40 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gridToPixels } from './positioning.js';
 
-// Built-in default ward — re-expresses the original 9 Alt+Super position presets.
-// Used when the 'wards' GSettings key is empty.
-const DEFAULT_WARD = {
-  name: 'Default',
-  cols: 16,
-  rows: 1,
-  edgeMargin: 0,
-  cellGap: 0,
-  shortcuts: [
-    {
-      shortcut: '<Alt><Super>1',
-      positions: [
-        { anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } },
-        { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>2',
-      positions: [
-        { anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } },
-        { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>3',
-      positions: [
-        { anchor: { col: 13, row: 1 }, target: { col: 16, row: 1 } },
-        { anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>4',
-      positions: [
-        { anchor: { col: 1, row: 1 }, target: { col: 8, row: 1 } },
-        { anchor: { col: 1, row: 1 }, target: { col: 12, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>5',
-      positions: [
-        { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } },
-        { anchor: { col: 4, row: 1 }, target: { col: 13, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>6',
-      positions: [
-        { anchor: { col: 9, row: 1 }, target: { col: 16, row: 1 } },
-        { anchor: { col: 5, row: 1 }, target: { col: 16, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>7',
-      positions: [
-        { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>8',
-      positions: [
-        { anchor: { col: 9, row: 1 }, target: { col: 13, row: 1 } },
-        { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } },
-      ],
-    },
-    {
-      shortcut: '<Alt><Super>9',
-      positions: [
-        { anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } },
-      ],
-    },
-  ],
-};
+// Built-in fallback wards — mirrors the schema default.
+// Used only when the 'wards' GSettings key is empty or unparseable.
+const DEFAULT_WARDS = [
+  {
+    name: 'Columns',
+    cols: 16, rows: 1, edgeMargin: 0, cellGap: 0,
+    shortcuts: [
+      { shortcut: '<Alt><Super>1', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } }] },
+      { shortcut: '<Alt><Super>2', positions: [{ anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 12, row: 2 } }] },
+      { shortcut: '<Alt><Super>3', positions: [{ anchor: { col: 13, row: 1 }, target: { col: 16, row: 1 } }, { anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } }] },
+      { shortcut: '<Alt><Super>4', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 1, row: 1 }, target: { col: 12, row: 1 } }] },
+      { shortcut: '<Alt><Super>5', positions: [{ anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } }, { anchor: { col: 4, row: 1 }, target: { col: 13, row: 1 } }] },
+      { shortcut: '<Alt><Super>6', positions: [{ anchor: { col: 9, row: 1 }, target: { col: 16, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 16, row: 1 } }] },
+      { shortcut: '<Alt><Super>7', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } }] },
+      { shortcut: '<Alt><Super>8', positions: [{ anchor: { col: 9, row: 1 }, target: { col: 13, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } }] },
+      { shortcut: '<Alt><Super>9', positions: [{ anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } }] },
+    ],
+  },
+  {
+    name: 'Floating Grid',
+    cols: 8, rows: 4, edgeMargin: 24, cellGap: 24,
+    shortcuts: [
+      { shortcut: '<Shift><Alt><Super>1', positions: [{ anchor: { col: 1, row: 3 }, target: { col: 2, row: 4 } }] },
+      { shortcut: '<Shift><Alt><Super>2', positions: [{ anchor: { col: 4, row: 3 }, target: { col: 5, row: 4 } }] },
+      { shortcut: '<Shift><Alt><Super>3', positions: [{ anchor: { col: 7, row: 3 }, target: { col: 8, row: 4 } }] },
+      { shortcut: '<Shift><Alt><Super>4', positions: [{ anchor: { col: 1, row: 2 }, target: { col: 2, row: 3 } }] },
+      { shortcut: '<Shift><Alt><Super>5', positions: [{ anchor: { col: 4, row: 2 }, target: { col: 5, row: 3 } }] },
+      { shortcut: '<Shift><Alt><Super>6', positions: [{ anchor: { col: 7, row: 2 }, target: { col: 8, row: 3 } }] },
+      { shortcut: '<Shift><Alt><Super>7', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 2, row: 2 } }] },
+      { shortcut: '<Shift><Alt><Super>8', positions: [{ anchor: { col: 4, row: 1 }, target: { col: 5, row: 2 } }] },
+      { shortcut: '<Shift><Alt><Super>9', positions: [{ anchor: { col: 7, row: 1 }, target: { col: 8, row: 2 } }] },
+    ],
+  },
+];
 
 export default class WindowSummonerExtension extends Extension {
   enable() {
@@ -198,10 +160,10 @@ export default class WindowSummonerExtension extends Extension {
   _getWards() {
     try {
       const parsed = JSON.parse(this._settings.get_string('wards'));
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_WARD];
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_WARDS;
     } catch (e) {
       console.error(`window-summoner: failed to parse wards: ${e.message}`);
-      return [DEFAULT_WARD];
+      return DEFAULT_WARDS;
     }
   }
 

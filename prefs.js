@@ -69,6 +69,16 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     addWardButton.connect('clicked', () => this._addWard());
     this._addWardGroup.add(addWardButton);
 
+    this._restoreDefaultsGroup = new Adw.PreferencesGroup();
+    const restoreButton = new Gtk.Button({
+      label: 'Restore Default Window Positions',
+      halign: Gtk.Align.CENTER,
+      margin_top: 4,
+      margin_bottom: 8,
+    });
+    restoreButton.connect('clicked', () => this._settings.reset('wards'));
+    this._restoreDefaultsGroup.add(restoreButton);
+
     this._loadWards();
 
     this._wardsChangedId = this._settings.connect('changed::wards', () => {
@@ -405,6 +415,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
       this._wardGroups.forEach(g => this._wardsPage.remove(g));
     }
     this._wardsPage.remove(this._addWardGroup);
+    this._wardsPage.remove(this._restoreDefaultsGroup);
     this._wardGroups = [];
 
     const wards = this._getWards();
@@ -419,6 +430,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     });
 
     this._wardsPage.add(this._addWardGroup);
+    this._wardsPage.add(this._restoreDefaultsGroup);
 
     if (adj && scrollPos > 0) {
       GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
