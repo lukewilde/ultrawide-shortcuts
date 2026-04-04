@@ -332,14 +332,21 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     return row;
   }
 
-  _positionLabel(position) {
-    const c1 = Math.min(position.anchor.col, position.target.col);
-    const c2 = Math.max(position.anchor.col, position.target.col);
-    const r1 = Math.min(position.anchor.row, position.target.row);
-    const r2 = Math.max(position.anchor.row, position.target.row);
-    const colStr = c1 === c2 ? `col ${c1}` : `cols ${c1}–${c2}`;
-    const rowStr = r1 === r2 ? `row ${r1}` : `rows ${r1}–${r2}`;
-    return `${colStr}, ${rowStr}`;
+  _positionsToText(positions) {
+    return positions
+      .map(p => `${p.anchor.col}:${p.anchor.row} ${p.target.col}:${p.target.row}`)
+      .join(', ');
+  }
+
+  _textToPositions(text) {
+    return text.split(',').map(part => {
+      const tokens = part.trim().split(/\s+/);
+      if (tokens.length < 2) return null;
+      const [c1, r1] = tokens[0].split(':').map(Number);
+      const [c2, r2] = tokens[1].split(':').map(Number);
+      if ([c1, r1, c2, r2].some(n => isNaN(n) || n < 1)) return null;
+      return { anchor: { col: c1, row: r1 }, target: { col: c2, row: r2 } };
+    }).filter(Boolean);
   }
 
   _updateWard(wardIndex, field, value) {
@@ -487,21 +494,17 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     });
     row.add_row(shortcutEntry);
 
-    shortcutConfig.positions.forEach((position, positionIndex) => {
-      row.add_row(this._createPositionRow(wardIndex, shortcutIndex, position, positionIndex));
+    const posEntry = new Adw.EntryRow({ title: 'Positions' });
+    posEntry.set_text(this._positionsToText(shortcutConfig.positions));
+    posEntry.connect('changed', () => {
+      const text = posEntry.get_text().trim();
+      const positions = text === '' ? [] : this._textToPositions(text);
+      if (text === '' || positions.length > 0) {
+        this._updateShortcut(wardIndex, shortcutIndex, 'positions', positions);
+        row.set_subtitle(this._positionSummary(ward, positions));
+      }
     });
-
-    const addPosRow = new Adw.ActionRow();
-    const addPosBtn = new Gtk.Button({
-      label: '+ Add Position',
-      css_classes: ['flat'],
-      halign: Gtk.Align.START,
-      margin_top: 4,
-      margin_bottom: 4,
-    });
-    addPosBtn.connect('clicked', () => this._showPositionEditor(wardIndex, shortcutIndex, -1));
-    addPosRow.set_child(addPosBtn);
-    row.add_row(addPosRow);
+    row.add_row(posEntry);
 
     const removeRow = new Adw.ActionRow();
     const removeBtn = new Gtk.Button({
@@ -523,105 +526,4 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     return row;
   }
 
-  _createPositionRow(wardIndex, shortcutIndex, position, positionIndex) {
-    const row = new Adw.ActionRow({
-      title: this._positionLabel(position),
-      activatable: false,
-    });
-
-    const editBtn = new Gtk.Button({
-      icon_name: 'document-edit-symbolic',
-      valign: Gtk.Align.CENTER,
-      css_classes: ['flat'],
-      tooltip_text: 'Edit position',
-    });
-    editBtn.connect('clicked', () => this._showPositionEditor(wardIndex, shortcutIndex, positionIndex));
-    row.add_suffix(editBtn);
-
-    const removeBtn = new Gtk.Button({
-      icon_name: 'list-remove-symbolic',
-      valign: Gtk.Align.CENTER,
-      css_classes: ['flat'],
-      tooltip_text: 'Remove position',
-    });
-    removeBtn.connect('clicked', () => {
-      const wards = this._getWards();
-      wards[wardIndex].shortcuts[shortcutIndex].positions.splice(positionIndex, 1);
-      this._saveWards(wards);
-      this._loadWards();
-    });
-    row.add_suffix(removeBtn);
-
-    return row;
-  }
-
-  _showPositionEditor(wardIndex, shortcutIndex, positionIndex) {
-    const wards = this._getWards();
-    const ward = wards[wardIndex];
-    const shortcut = ward.shortcuts[shortcutIndex];
-    const isEdit = positionIndex >= 0;
-    const existing = isEdit
-      ? shortcut.positions[positionIndex]
-      : { anchor: { col: 1, row: 1 }, target: { col: 1, row: 1 } };
-
-    const makeSpinner = (val, max) => new Gtk.SpinButton({
-      adjustment: new Gtk.Adjustment({
-        value: val,
-        lower: 1,
-        upper: max,
-        step_increment: 1,
-        page_increment: 1,
-      }),
-      numeric: true,
-      valign: Gtk.Align.CENTER,
-    });
-
-    const anchorColSpin = makeSpinner(existing.anchor.col, ward.cols);
-    const anchorRowSpin = makeSpinner(existing.anchor.row, ward.rows);
-    const targetColSpin = makeSpinner(existing.target.col, ward.cols);
-    const targetRowSpin = makeSpinner(existing.target.row, ward.rows);
-
-    const grid = new Gtk.Grid({
-      column_spacing: 12,
-      row_spacing: 8,
-      margin_top: 12,
-      margin_bottom: 4,
-    });
-    grid.attach(new Gtk.Label({ label: 'Anchor col', halign: Gtk.Align.START }), 0, 0, 1, 1);
-    grid.attach(anchorColSpin, 1, 0, 1, 1);
-    grid.attach(new Gtk.Label({ label: 'Anchor row', halign: Gtk.Align.START }), 0, 1, 1, 1);
-    grid.attach(anchorRowSpin, 1, 1, 1, 1);
-    grid.attach(new Gtk.Label({ label: 'Target col', halign: Gtk.Align.START }), 0, 2, 1, 1);
-    grid.attach(targetColSpin, 1, 2, 1, 1);
-    grid.attach(new Gtk.Label({ label: 'Target row', halign: Gtk.Align.START }), 0, 3, 1, 1);
-    grid.attach(targetRowSpin, 1, 3, 1, 1);
-
-    const dialog = new Adw.AlertDialog({
-      heading: isEdit ? 'Edit Position' : 'Add Position',
-      extra_child: grid,
-    });
-    dialog.add_response('cancel', 'Cancel');
-    dialog.add_response('confirm', isEdit ? 'Save' : 'Add');
-    dialog.set_default_response('confirm');
-    dialog.set_close_response('cancel');
-    dialog.set_response_appearance('confirm', Adw.ResponseAppearance.SUGGESTED);
-
-    dialog.connect('response', (_dialog, response) => {
-      if (response !== 'confirm') return;
-      const newPosition = {
-        anchor: { col: anchorColSpin.get_value_as_int(), row: anchorRowSpin.get_value_as_int() },
-        target: { col: targetColSpin.get_value_as_int(), row: targetRowSpin.get_value_as_int() },
-      };
-      const w2 = this._getWards();
-      if (isEdit) {
-        w2[wardIndex].shortcuts[shortcutIndex].positions[positionIndex] = newPosition;
-      } else {
-        w2[wardIndex].shortcuts[shortcutIndex].positions.push(newPosition);
-      }
-      this._saveWards(w2);
-      this._loadWards();
-    });
-
-    dialog.present(this._window);
-  }
 }
