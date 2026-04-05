@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.zip
 schemas/gschemas.compiled
+.superpowers/
+docs/
