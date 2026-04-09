@@ -15,7 +15,7 @@ A GNOME Shell extension that binds keyboard shortcuts to applications. Summon an
 
 ```bash
 cd ~/.local/share/gnome-shell/extensions
-git clone <repo-url> window-summoner@ding
+git clone git@github.com:lukewilde/gnome-magic-window.git window-summoner@ding
 cd window-summoner@ding
 glib-compile-schemas schemas/
 gnome-extensions enable window-summoner@ding
