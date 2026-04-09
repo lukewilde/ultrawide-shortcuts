@@ -1,5 +1,5 @@
 // Run with: gjs -m test/test_positioning.js
-import { gridToPixels, parsePositionPresets } from '../positioning.js';
+import { gridToPixels } from '../positioning.js';
 
 let passed = 0;
 let failed = 0;
@@ -60,42 +60,6 @@ assertRect(
   { x: 0, y: 0, width: 480, height: 1080 },
   'reversed anchor/target'
 );
-
-// --- parsePositionPresets tests ---
-
-// Single preset
-const single = parsePositionPresets('16x1 1:1 4:1');
-assert(single.length === 1, 'single preset: count');
-assert(single[0].gridSize.cols === 16, 'single preset: cols');
-assert(single[0].gridSize.rows === 1, 'single preset: rows');
-assert(single[0].selection.anchor.col === 0, 'single preset: anchor col (0-indexed)');
-assert(single[0].selection.target.col === 3, 'single preset: target col (0-indexed)');
-
-// Multiple presets with inherited grid size
-const multi = parsePositionPresets('16x1 1:1 4:1, 1:1 3:1');
-assert(multi.length === 2, 'multi preset: count');
-assert(multi[1].gridSize.cols === 16, 'multi preset: inherited grid cols');
-assert(multi[1].selection.target.col === 2, 'multi preset: second target col');
-
-// Different grid in second preset
-const diffGrid = parsePositionPresets('16x1 1:1 8:1, 4x4 1:1 2:2');
-assert(diffGrid.length === 2, 'diff grid: count');
-assert(diffGrid[1].gridSize.cols === 4, 'diff grid: second preset cols');
-assert(diffGrid[1].gridSize.rows === 4, 'diff grid: second preset rows');
-
-// Empty/null input
-assert(parsePositionPresets('').length === 0, 'empty string');
-assert(parsePositionPresets(null).length === 0, 'null input');
-assert(parsePositionPresets(undefined).length === 0, 'undefined input');
-
-// User's actual presets
-const preset1 = parsePositionPresets('16x1 1:1 4:1, 1:1 3:1');
-assert(preset1[0].selection.anchor.col === 0 && preset1[0].selection.target.col === 3, 'user preset1 first');
-assert(preset1[1].selection.anchor.col === 0 && preset1[1].selection.target.col === 2, 'user preset1 second');
-
-const preset4 = parsePositionPresets('16x1 1:1 8:1, 1:1 12:1');
-assert(preset4[0].selection.target.col === 7, 'user preset4 first: left half');
-assert(preset4[1].selection.target.col === 11, 'user preset4 second: left 3/4');
 
 // --- gridToPixels with cellGap ---
 // 4-column 400px wide grid, 10px gap between cells
