@@ -49,6 +49,10 @@ export default class WindowSummonerExtension extends Extension {
     this._launching = false;
     this._lastPreset = null; // { key, windowId, index }
     this._presetTimerId = null;
+    this._focusHistory = []; // stableSequence[], most-recently-focused first
+    this._cycleSnapshot = null; // { wmClass, order: stableSequence[] } — stable order for active cycle
+    this._focusChangedId = global.display.connect(
+      'notify::focus-window', this._onFocusChanged.bind(this));
 
     this._wardsChangedId = null;
 
@@ -90,6 +94,12 @@ export default class WindowSummonerExtension extends Extension {
     this._dbus = null;
     this._settings = null;
     this._lastPreset = null;
+    if (this._focusChangedId) {
+      global.display.disconnect(this._focusChangedId);
+      this._focusChangedId = null;
+    }
+    this._focusHistory = null;
+    this._cycleSnapshot = null;
   }
 
   _setupDbus() {
@@ -277,10 +287,54 @@ export default class WindowSummonerExtension extends Extension {
     return windows.find(w => w.metaWindow === focused) || null;
   }
 
+  _onFocusChanged() {
+    const w = global.display.focus_window;
+    if (!w) return;
+    // If focus moved to a window outside the active cycle's app, end the snapshot
+    // so the next summon starts a fresh MRU sort.
+    if (this._cycleSnapshot) {
+      const wc = (w.get_wm_class() || '').toLowerCase();
+      if (!wc.includes(this._cycleSnapshot.wmClass))
+        this._cycleSnapshot = null;
+    }
+    const seq = w.get_stable_sequence();
+    this._focusHistory = [seq, ...this._focusHistory.filter(s => s !== seq)];
+    if (this._focusHistory.length > 200)
+      this._focusHistory.length = 200;
+  }
+
   _findWindows(wmClass) {
-    return this._getWindows()
-      .filter(w => w.wmClass.toLowerCase().includes(wmClass.toLowerCase()))
-      .sort((a, b) => a.stableSequence - b.stableSequence);
+    const lc = wmClass.toLowerCase();
+    const windows = this._getWindows()
+      .filter(w => w.wmClass.toLowerCase().includes(lc));
+
+    // During an active cycling session, sort by the snapshot taken at session start
+    // so mid-cycle history updates can't scramble the order.
+    if (this._cycleSnapshot && this._cycleSnapshot.wmClass === lc) {
+      const order = this._cycleSnapshot.order;
+      return windows.sort((a, b) => {
+        const ai = order.indexOf(a.stableSequence);
+        const bi = order.indexOf(b.stableSequence);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+    }
+
+    // Fresh sort: MRU order. Add any unvisited windows to the history tail so
+    // they rank as least-recently-used rather than triggering special-case logic.
+    for (const w of windows) {
+      if (!this._focusHistory.includes(w.stableSequence))
+        this._focusHistory.push(w.stableSequence);
+    }
+    const sorted = windows.sort((a, b) =>
+      this._focusHistory.indexOf(a.stableSequence) -
+      this._focusHistory.indexOf(b.stableSequence));
+
+    // Pin this order as the snapshot for the upcoming cycle session.
+    this._cycleSnapshot = { wmClass: lc, order: sorted.map(m => m.stableSequence) };
+    return sorted;
   }
 
   magic_key_pressed(wmClass, command) {
