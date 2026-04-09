@@ -129,7 +129,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
   _createBindingRow(binding, index) {
     const row = new Adw.ExpanderRow({
       title: binding.wmClass || '(empty)',
-      subtitle: binding.shortcut || 'No shortcut',
+      subtitle: GLib.markup_escape_text(binding.shortcut || 'No shortcut', -1),
     });
 
     // Shortcut field
@@ -137,7 +137,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     shortcutRow.set_text(binding.shortcut || '');
     shortcutRow.connect('changed', () => {
       this._updateBinding(index, 'shortcut', shortcutRow.get_text());
-      row.set_subtitle(shortcutRow.get_text() || 'No shortcut');
+      row.set_subtitle(GLib.markup_escape_text(shortcutRow.get_text() || 'No shortcut', -1));
     });
     row.add_row(shortcutRow);
 
@@ -533,7 +533,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
 
   _createShortcutRow(wardIndex, ward, shortcutConfig, shortcutIndex) {
     const row = new Adw.ExpanderRow({
-      title: shortcutConfig.shortcut || '(no shortcut)',
+      title: GLib.markup_escape_text(shortcutConfig.shortcut || '(no shortcut)', -1),
       subtitle: this._positionSummary(ward, shortcutConfig.positions),
     });
 
@@ -541,7 +541,7 @@ export default class WindowSummonerPreferences extends ExtensionPreferences {
     shortcutEntry.set_text(shortcutConfig.shortcut || '');
     shortcutEntry.connect('changed', () => {
       this._updateShortcut(wardIndex, shortcutIndex, 'shortcut', shortcutEntry.get_text());
-      row.set_title(shortcutEntry.get_text() || '(no shortcut)');
+      row.set_title(GLib.markup_escape_text(shortcutEntry.get_text() || '(no shortcut)', -1));
     });
     row.add_row(shortcutEntry);
 
