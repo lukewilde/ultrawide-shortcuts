@@ -6,9 +6,9 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gridToPixels } from './positioning.js';
 
-// Built-in fallback wards — mirrors the schema default.
-// Used only when the 'wards' GSettings key is empty or unparseable.
-const DEFAULT_WARDS = [
+// Built-in fallback positions — mirrors the schema default.
+// Used only when the 'positions' GSettings key is empty or unparseable.
+const DEFAULT_POSITIONS = [
   {
     name: 'Columns',
     cols: 16, rows: 1, edgeMargin: 0, cellGap: 0,
@@ -41,7 +41,7 @@ const DEFAULT_WARDS = [
   },
 ];
 
-export default class WindowSummonerExtension extends Extension {
+export default class UltrawideShortcutsExtension extends Extension {
   enable() {
     this._settings = this.getSettings();
     this._actions = [];
@@ -54,20 +54,20 @@ export default class WindowSummonerExtension extends Extension {
     this._focusChangedId = global.display.connect(
       'notify::focus-window', this._onFocusChanged.bind(this));
 
-    this._wardsChangedId = null;
+    this._positionsChangedId = null;
 
     this._setupDbus();
     this._registerBindings();
-    this._registerWards();
+    this._registerPositions();
 
     this._settingsChangedId = this._settings.connect('changed::bindings', () => {
       this._unregisterBindings();
       this._registerBindings();
     });
 
-    this._wardsChangedId = this._settings.connect('changed::wards', () => {
-      this._unregisterWards();
-      this._registerWards();
+    this._positionsChangedId = this._settings.connect('changed::positions', () => {
+      this._unregisterPositions();
+      this._registerPositions();
     });
   }
 
@@ -76,13 +76,13 @@ export default class WindowSummonerExtension extends Extension {
       this._settings.disconnect(this._settingsChangedId);
       this._settingsChangedId = null;
     }
-    if (this._wardsChangedId) {
-      this._settings.disconnect(this._wardsChangedId);
-      this._wardsChangedId = null;
+    if (this._positionsChangedId) {
+      this._settings.disconnect(this._positionsChangedId);
+      this._positionsChangedId = null;
     }
 
     this._unregisterBindings();
-    this._unregisterWards();
+    this._unregisterPositions();
 
     this._dbus.flush();
     this._dbus.unexport();
@@ -105,7 +105,7 @@ export default class WindowSummonerExtension extends Extension {
   _setupDbus() {
     this._dbus = Gio.DBusExportedObject.wrapJSObject(`
       <node>
-        <interface name="org.gnome.Shell.Extensions.WindowSummoner">
+        <interface name="org.gnome.Shell.Extensions.UltrawideShortcuts">
           <method name="magic_key_pressed">
             <arg type="s" direction="in" name="wmClass"/>
             <arg type="s" direction="in" name="command"/>
@@ -115,7 +115,7 @@ export default class WindowSummonerExtension extends Extension {
           </method>
         </interface>
       </node>`, this);
-    this._dbus.export(Gio.DBus.session, '/org/gnome/Shell/Extensions/WindowSummoner');
+    this._dbus.export(Gio.DBus.session, '/org/gnome/Shell/Extensions/UltrawideShortcuts');
   }
 
   // --- App focus/launch bindings (from GSettings) ---
@@ -124,7 +124,7 @@ export default class WindowSummonerExtension extends Extension {
     try {
       return JSON.parse(this._settings.get_string('bindings'));
     } catch (e) {
-      console.error(`window-summoner: failed to parse bindings: ${e.message}`);
+      console.error(`ultrawide-shortcuts: failed to parse bindings: ${e.message}`);
       return [];
     }
   }
@@ -165,20 +165,20 @@ export default class WindowSummonerExtension extends Extension {
     this._actions = [];
   }
 
-  // --- Wards (snap focused window to grid) ---
+  // --- Positions (snap focused window to grid) ---
 
-  _getWards() {
+  _getPositions() {
     try {
-      const parsed = JSON.parse(this._settings.get_string('wards'));
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_WARDS;
+      const parsed = JSON.parse(this._settings.get_string('positions'));
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_POSITIONS;
     } catch (e) {
-      console.error(`window-summoner: failed to parse wards: ${e.message}`);
-      return DEFAULT_WARDS;
+      console.error(`ultrawide-shortcuts: failed to parse positions: ${e.message}`);
+      return DEFAULT_POSITIONS;
     }
   }
 
-  _registerWards() {
-    const wards = this._getWards();
+  _registerPositions() {
+    const wards = this._getPositions();
     for (const ward of wards) {
       for (const shortcutConfig of ward.shortcuts) {
         if (!shortcutConfig.shortcut) continue;
@@ -189,7 +189,7 @@ export default class WindowSummonerExtension extends Extension {
           'accelerator-activated',
           (_display, activatedAction, _deviceId, _timestamp) => {
             if (activatedAction === action)
-              this._applyWardShortcut(ward, shortcutConfig);
+              this._applyPositionShortcut(ward, shortcutConfig);
           }
         );
 
@@ -200,7 +200,7 @@ export default class WindowSummonerExtension extends Extension {
     }
   }
 
-  _unregisterWards() {
+  _unregisterPositions() {
     for (const { action, handlerId } of this._positionActions) {
       global.display.disconnect(handlerId);
       global.display.ungrab_accelerator(action);
@@ -208,7 +208,7 @@ export default class WindowSummonerExtension extends Extension {
     this._positionActions = [];
   }
 
-  _applyWardShortcut(ward, shortcutConfig) {
+  _applyPositionShortcut(ward, shortcutConfig) {
     const focused = global.display.focus_window;
     if (!focused || !shortcutConfig.positions.length) return;
 
@@ -352,8 +352,8 @@ export default class WindowSummonerExtension extends Extension {
         try {
           GLib.spawn_command_line_async(command);
         } catch (e) {
-          console.error(`window-summoner: failed to launch '${command}': ${e.message}`);
-          Main.notify('Window Summoner', `Failed to launch: ${command}\n${e.message}`);
+          console.error(`ultrawide-shortcuts: failed to launch '${command}': ${e.message}`);
+          Main.notify('Ultrawide Shortcuts', `Failed to launch: ${command}\n${e.message}`);
         }
       }
     } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {
