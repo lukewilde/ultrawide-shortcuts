@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXT="window-summoner@ding"
-DBUS_PATH="/org/gnome/Shell/Extensions/WindowSummoner"
-DBUS_IFACE="org.gnome.Shell.Extensions.WindowSummoner"
-DEBUG_FILE="/tmp/window-summoner-debug"
+EXT="ultrawide-shortcuts@ding"
+DBUS_PATH="/org/gnome/Shell/Extensions/UltrawideShortcuts"
+DBUS_IFACE="org.gnome.Shell.Extensions.UltrawideShortcuts"
+DEBUG_FILE="/tmp/ultrawide-shortcuts-debug"
 
 case "${1:-help}" in
   reload)

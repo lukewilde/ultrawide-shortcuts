@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "window-summoner",
+  "name": "ultrawide-shortcuts",
   "type": "module",
   "scripts": {
     "lint": "eslint extension.js",
