@@ -1,4 +1,5 @@
 import Adw from 'gi://Adw';
+import Gdk from 'gi://Gdk';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -126,6 +127,77 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     });
   }
 
+  _accelToLabel(accel) {
+    if (!accel) return 'No shortcut';
+    try {
+      const parsed = Gtk.accelerator_parse(accel);
+      const keyval = parsed[1];
+      const mods = parsed[2];
+      if (keyval) return Gtk.accelerator_get_label(keyval, mods);
+    } catch { /* invalid accel string */ }
+    return accel;
+  }
+
+  _startListening(label, onCapture, currentAccel) {
+    const wasListening = this._listeningLabel === label;
+
+    // Stop any active listener, restoring its label
+    if (this._listeningController) {
+      this._window.remove_controller(this._listeningController);
+      this._listeningController = null;
+      this._listeningLabel?.set_label(this._listeningRestoreText ?? 'No shortcut');
+      this._listeningLabel = null;
+      this._listeningRestoreText = null;
+    }
+
+    // Toggle off if same button clicked again
+    if (wasListening) return;
+
+    const restoreText = this._accelToLabel(currentAccel);
+    this._listeningLabel = label;
+    this._listeningRestoreText = restoreText;
+    label.set_label('Press a shortcut…');
+
+    const controller = new Gtk.EventControllerKey();
+    this._listeningController = controller;
+
+    controller.connect('key-pressed', (_ctrl, keyval, keycode, state) => {
+      const mask = state & ~(Gdk.ModifierType.LOCK_MASK | Gdk.ModifierType.MOD2_MASK);
+
+      if (keyval === Gdk.KEY_Escape) {
+        this._window.remove_controller(controller);
+        this._listeningController = null;
+        label.set_label(restoreText);
+        this._listeningLabel = null;
+        return true;
+      }
+
+      if (keyval === Gdk.KEY_BackSpace && mask === 0) {
+        onCapture('');
+        this._window.remove_controller(controller);
+        this._listeningController = null;
+        label.set_label('No shortcut');
+        this._listeningLabel = null;
+        return true;
+      }
+
+      if (Gtk.accelerator_valid(keyval, mask)) {
+        const accelName = Gtk.accelerator_name_with_keycode(null, keyval, keycode, mask);
+        const accelLabel = Gtk.accelerator_get_label(keyval, mask);
+        onCapture(accelName);
+        this._window.remove_controller(controller);
+        this._listeningController = null;
+        label.set_label(accelLabel);
+        this._listeningLabel = null;
+        return true;
+      }
+
+      return false;
+    });
+
+    this._window.add_controller(controller);
+  }
+
   _createBindingRow(binding, index) {
     const row = new Adw.ExpanderRow({
       title: binding.wmClass || '(empty)',
@@ -133,12 +205,26 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     });
 
     // Shortcut field
-    const shortcutRow = new Adw.EntryRow({ title: 'Shortcut' });
-    shortcutRow.set_text(binding.shortcut || '');
-    shortcutRow.connect('changed', () => {
-      this._updateBinding(index, 'shortcut', shortcutRow.get_text());
-      row.set_subtitle(GLib.markup_escape_text(shortcutRow.get_text() || 'No shortcut', -1));
+    const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' });
+    const shortcutLabel = new Gtk.Label({
+      label: this._accelToLabel(binding.shortcut),
+      css_classes: ['dim-label'],
+      valign: Gtk.Align.CENTER,
     });
+    const setShortcutBtn = new Gtk.Button({
+      label: 'Set',
+      valign: Gtk.Align.CENTER,
+      css_classes: ['flat'],
+    });
+    setShortcutBtn.connect('clicked', () => {
+      const currentShortcut = this._getBindings()[index]?.shortcut ?? '';
+      this._startListening(shortcutLabel, (accel) => {
+        this._updateBinding(index, 'shortcut', accel);
+        row.set_subtitle(GLib.markup_escape_text(accel ? this._accelToLabel(accel) : 'No shortcut', -1));
+      }, currentShortcut);
+    });
+    shortcutRow.add_suffix(shortcutLabel);
+    shortcutRow.add_suffix(setShortcutBtn);
     row.add_row(shortcutRow);
 
     // WM Class field + detect button
@@ -537,13 +623,29 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       subtitle: this._positionSummary(position, shortcutConfig.positions),
     });
 
-    const shortcutEntry = new Adw.EntryRow({ title: 'Shortcut' });
-    shortcutEntry.set_text(shortcutConfig.shortcut || '');
-    shortcutEntry.connect('changed', () => {
-      this._updateShortcut(positionIndex, shortcutIndex, 'shortcut', shortcutEntry.get_text());
-      row.set_title(GLib.markup_escape_text(shortcutEntry.get_text() || '(no shortcut)', -1));
+    const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' });
+    const shortcutLabel = new Gtk.Label({
+      label: this._accelToLabel(shortcutConfig.shortcut),
+      css_classes: ['dim-label'],
+      valign: Gtk.Align.CENTER,
     });
-    row.add_row(shortcutEntry);
+    const setShortcutBtn = new Gtk.Button({
+      label: 'Set',
+      valign: Gtk.Align.CENTER,
+      css_classes: ['flat'],
+    });
+    setShortcutBtn.connect('clicked', () => {
+      const positions = this._getPositions();
+      const currentShortcut = positions[positionIndex]?.shortcuts[shortcutIndex]?.shortcut ?? '';
+      this._startListening(shortcutLabel, (accel) => {
+        this._updateShortcut(positionIndex, shortcutIndex, 'shortcut', accel);
+        const title = accel ? this._accelToLabel(accel) : '(no shortcut)';
+        row.set_title(GLib.markup_escape_text(title, -1));
+      }, currentShortcut);
+    });
+    shortcutRow.add_suffix(shortcutLabel);
+    shortcutRow.add_suffix(setShortcutBtn);
+    row.add_row(shortcutRow);
 
     const posEntry = new Adw.EntryRow({ title: 'Positions (col:row col:row, …)' });
     posEntry.set_text(this._positionsToText(shortcutConfig.positions));
