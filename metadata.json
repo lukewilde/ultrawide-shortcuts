@@ -3,5 +3,6 @@
   "description": "Launch apps with a shortcut and snap windows into grid positions",
   "uuid": "ultrawide-shortcuts@ding",
   "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/lukewilde/ultrawide-shortcuts",
   "settings-schema": "org.gnome.shell.extensions.ultrawide-shortcuts"
 }

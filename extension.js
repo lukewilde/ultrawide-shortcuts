@@ -47,6 +47,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._actions = [];
     this._positionActions = [];
     this._launching = false;
+    this._launchingTimerId = null;
     this._lastPreset = null; // { key, windowId, index }
     this._presetTimerId = null;
     this._focusHistory = []; // stableSequence[], most-recently-focused first
@@ -89,6 +90,10 @@ export default class UltrawideShortcutsExtension extends Extension {
     if (this._presetTimerId) {
       GLib.source_remove(this._presetTimerId);
       this._presetTimerId = null;
+    }
+    if (this._launchingTimerId) {
+      GLib.source_remove(this._launchingTimerId);
+      this._launchingTimerId = null;
     }
 
     this._dbus = null;
@@ -345,8 +350,9 @@ export default class UltrawideShortcutsExtension extends Extension {
       // No matching window — launch the application
       if (!this._launching && command) {
         this._launching = true;
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+        this._launchingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
           this._launching = false;
+          this._launchingTimerId = null;
           return GLib.SOURCE_REMOVE;
         });
         try {

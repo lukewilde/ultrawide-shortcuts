@@ -92,6 +92,13 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
         this._positionsChangedId = null;
       }
     });
+
+    window.connect('close-request', () => {
+      if (this._scrollRestoreId) {
+        GLib.source_remove(this._scrollRestoreId);
+        this._scrollRestoreId = null;
+      }
+    });
   }
 
   _getBindings() {
@@ -519,8 +526,11 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     this._positionsPage.add(this._restoreDefaultsGroup);
 
     if (adj && scrollPos > 0) {
-      GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      if (this._scrollRestoreId)
+        GLib.source_remove(this._scrollRestoreId);
+      this._scrollRestoreId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
         adj.set_value(scrollPos);
+        this._scrollRestoreId = null;
         return GLib.SOURCE_REMOVE;
       });
     }
