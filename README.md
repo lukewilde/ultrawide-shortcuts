@@ -11,17 +11,20 @@ A GNOME Shell extension that binds keyboard shortcuts to applications. Summon an
 - **Live configuration** — Change bindings in the preferences UI or via dconf; takes effect immediately without session restart.
 - **WM class auto-detect** — Click "Detect" in preferences to pick from running windows instead of guessing WM class strings.
 
-## Install
+## Manual Install
 
 ```bash
 cd ~/.local/share/gnome-shell/extensions
 git clone git@github.com:lukewilde/gnome-magic-window.git window-summoner@ding
 cd window-summoner@ding
 glib-compile-schemas schemas/
-gnome-extensions enable window-summoner@ding
 ```
 
-Then restart your GNOME session (log out / log in).
+Restart your GNOME session (log out / log in) before running:
+
+```bash
+gnome-extensions enable window-summoner@ding
+```
 
 ## Configure
 
@@ -32,6 +35,7 @@ gnome-extensions prefs window-summoner@ding
 ```
 
 Each binding has three fields:
+
 - **Shortcut** — The key combination (e.g. `<Shift><Alt><Ctrl>r`)
 - **WM Class** — Case-insensitive substring to match the window (e.g. `kitty`)
 - **Command** — Launch command if no matching window exists (e.g. `/usr/bin/kitty`)
@@ -40,17 +44,17 @@ Each binding has three fields:
 
 `Alt+Super+1` through `Alt+Super+9` snap the focused window to grid positions on a 16-column grid. Presets with multiple sizes cycle on repeated presses:
 
-| Key | First press | Second press |
-|-----|------------|-------------|
-| 1 | Left quarter | Narrow left |
-| 2 | Center-left | Wide center |
-| 3 | Right quarter | Narrow right |
-| 4 | Left half | Left 3/4 |
-| 5 | Center half | Wider center |
-| 6 | Right half | Right 3/4 |
-| 7 | Narrow left | — |
-| 8 | Right-center | Center |
-| 9 | Narrow right | — |
+| Key | First press   | Second press        |
+| --- | ------------- | ------------------- |
+| 1   | Left quarter  | Narrow left         |
+| 2   | Center-left   | Narrow center left  |
+| 3   | Right quarter | Narrow right        |
+| 4   | Left half     | Left 3/4            |
+| 5   | Center half   | Wider center        |
+| 6   | Right half    | Right 3/4           |
+| 7   | Narrow left   | —                   |
+| 8   | Right-center  | Narrow center right |
+| 9   | Narrow right  | —                   |
 
 ## Development
 
