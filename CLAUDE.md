@@ -1,4 +1,4 @@
-# Window Summoner
+# Ultrawide Shortcuts
 
 GNOME Shell 49 extension (GJS ES6+ modules, GObject Introspection).
 
@@ -22,15 +22,15 @@ gjs -m test/test_positioning.js   # Run unit tests
 glib-compile-schemas schemas/     # After schema changes
 ```
 
-## Wards — Indexing Gotcha
+## Positions — Indexing Gotcha
 
 Positions stored **1-indexed** in GSettings. `gridToPixels()` takes **0-indexed** — subtract 1 before calling.
-`DEFAULT_WARD` in `extension.js` is the runtime fallback when `wards` key is empty/invalid.
+`DEFAULT_POSITIONS` in `extension.js` is the runtime fallback when `positions` key is empty/invalid.
 
-Ward shape: `{name, cols, rows, edgeMargin, cellGap, shortcuts[{shortcut, positions[{anchor, target}]}]}`.
+Position shape: `{name, cols, rows, edgeMargin, cellGap, shortcuts[{shortcut, positions[{anchor, target}]}]}`.
 Positions text format: `"col:row col:row, col:row col:row"` — comma = cycling positions.
 
 ## prefs.js Patterns
 
-- `_writing`/`_writingWards` flags prevent reload loop (suppress `changed::` during saves).
-- Preserve `row.get_expanded()` before `_loadWards()`/`_loadBindings()`, restore after rebuild.
+- `_writing`/`_writingPositions` flags prevent reload loop (suppress `changed::` during saves).
+- Preserve `row.get_expanded()` before `_loadPositions()`/`_loadBindings()`, restore after rebuild.
