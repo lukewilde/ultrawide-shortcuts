@@ -3,12 +3,12 @@
   "name": "ultrawide-shortcuts",
   "type": "module",
   "scripts": {
-    "lint": "eslint extension.js",
-    "lint:fix": "eslint --fix extension.js",
+    "lint": "eslint extension.js positioning.js prefs.js",
+    "lint:fix": "eslint --fix extension.js positioning.js prefs.js",
     "reload": "./dev.sh reload",
     "logs": "./dev.sh logs",
     "nested": "./dev.sh nested",
-    "pack": "gnome-extensions pack . --out-dir=dist --force"
+    "pack": "gnome-extensions pack . --extra-source=positioning.js --out-dir=dist --force"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

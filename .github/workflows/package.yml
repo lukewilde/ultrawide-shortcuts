@@ -1,0 +1,53 @@
+name: Package Extension
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+
+  package:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install glib tools
+        run: sudo apt-get install -y --no-install-recommends libglib2.0-bin
+
+      - name: Compile schemas
+        run: glib-compile-schemas schemas/
+
+      - name: Create ZIP
+        run: |
+          zip ultrawide-shortcuts@ding.zip \
+            extension.js positioning.js prefs.js metadata.json \
+            schemas/org.gnome.shell.extensions.ultrawide-shortcuts.gschema.xml \
+            schemas/gschemas.compiled
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultrawide-shortcuts@ding
+          path: ultrawide-shortcuts@ding.zip
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ultrawide-shortcuts@ding.zip
