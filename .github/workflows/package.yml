@@ -27,18 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install glib tools
-        run: sudo apt-get install -y --no-install-recommends libglib2.0-bin
-
-      - name: Compile schemas
-        run: glib-compile-schemas schemas/
-
       - name: Create ZIP
         run: |
           zip ultrawide-shortcuts@ding.zip \
             extension.js positioning.js prefs.js metadata.json \
-            schemas/org.gnome.shell.extensions.ultrawide-shortcuts.gschema.xml \
-            schemas/gschemas.compiled
+            schemas/org.gnome.shell.extensions.ultrawide-shortcuts.gschema.xml
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
