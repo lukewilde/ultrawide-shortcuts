@@ -47,6 +47,9 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       }
     });
 
+    // --- Drag-to-Snap page ---
+    this._buildDragSnapPage(window);
+
     // --- Window Positions page ---
     this._positionsPage = new Adw.PreferencesPage({
       title: 'Window Positions',
@@ -99,6 +102,65 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
         this._scrollRestoreId = null;
       }
     });
+  }
+
+  _buildDragSnapPage(window) {
+    const page = new Adw.PreferencesPage({
+      title: 'Drag-to-Snap',
+      icon_name: 'input-mouse-symbolic',
+    });
+    window.add(page);
+
+    const group = new Adw.PreferencesGroup({
+      title: 'Drag-to-Snap',
+      description:
+        'Show a hint and snap windows to grid positions while dragging. ' +
+        'Hold Ctrl during drag to disable snapping. Each grid can be assigned ' +
+        'a modifier key on the Window Positions page.',
+    });
+    page.add(group);
+
+    const enableRow = new Adw.SwitchRow({
+      title: 'Enable Drag-to-Snap',
+      subtitle: 'Show snap hint while dragging windows',
+    });
+    this._settings.bind('drag-snap-enabled', enableRow, 'active',
+      Gio.SettingsBindFlags.DEFAULT);
+    group.add(enableRow);
+
+    const opacityRow = new Adw.ActionRow({
+      title: 'Hint Opacity',
+      subtitle: 'Fill transparency of the snap hint (0–100%)',
+    });
+    const opacitySpin = new Gtk.SpinButton({
+      adjustment: new Gtk.Adjustment({
+        lower: 0, upper: 100, step_increment: 5, page_increment: 10,
+      }),
+      numeric: true,
+      width_chars: 4,
+      valign: Gtk.Align.CENTER,
+    });
+    this._settings.bind('drag-hint-opacity', opacitySpin, 'value',
+      Gio.SettingsBindFlags.DEFAULT);
+    opacityRow.add_suffix(opacitySpin);
+    group.add(opacityRow);
+
+    const borderRow = new Adw.ActionRow({
+      title: 'Border Width',
+      subtitle: 'Thickness of the snap hint outline (px)',
+    });
+    const borderSpin = new Gtk.SpinButton({
+      adjustment: new Gtk.Adjustment({
+        lower: 0, upper: 20, step_increment: 1, page_increment: 5,
+      }),
+      numeric: true,
+      width_chars: 4,
+      valign: Gtk.Align.CENTER,
+    });
+    this._settings.bind('drag-hint-border-width', borderSpin, 'value',
+      Gio.SettingsBindFlags.DEFAULT);
+    borderRow.add_suffix(borderSpin);
+    group.add(borderRow);
   }
 
   _getBindings() {
@@ -601,6 +663,8 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       }
     ));
 
+    group.add(this._makeDragModifierRow(position, positionIndex));
+
     const shortcutsHeader = new Adw.ActionRow({ title: 'Shortcuts' });
     shortcutsHeader.set_activatable(false);
     group.add(shortcutsHeader);
@@ -625,6 +689,32 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     group.add(addShortcutRow);
 
     return group;
+  }
+
+  _makeDragModifierRow(position, positionIndex) {
+    const modifiers = ['none', 'shift', 'alt', 'super'];
+    const labels = ['None', 'Shift', 'Alt', 'Super'];
+
+    const model = new Gtk.StringList();
+    labels.forEach(l => model.append(l));
+
+    const row = new Adw.ComboRow({
+      title: 'Drag Modifier',
+      subtitle: 'Activates this grid during drag-to-snap (Ctrl always disables snapping)',
+      model,
+    });
+
+    const current = (position.dragModifier || 'none').toLowerCase();
+    let initialIdx = modifiers.indexOf(current);
+    if (initialIdx < 0) initialIdx = 0;
+    row.set_selected(initialIdx);
+
+    row.connect('notify::selected', () => {
+      const idx = row.get_selected();
+      this._updatePosition(positionIndex, 'dragModifier', modifiers[idx]);
+    });
+
+    return row;
   }
 
   _createShortcutRow(positionIndex, position, shortcutConfig, shortcutIndex) {

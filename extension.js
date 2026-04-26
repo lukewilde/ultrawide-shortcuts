@@ -5,6 +5,7 @@ import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gridToPixels } from './positioning.js';
+import { DragSnapManager } from './drag-snap.js';
 
 // Built-in fallback positions — mirrors the schema default.
 // Used only when the 'positions' GSettings key is empty or unparseable.
@@ -70,9 +71,16 @@ export default class UltrawideShortcutsExtension extends Extension {
       this._unregisterPositions();
       this._registerPositions();
     });
+
+    this._dragSnap = new DragSnapManager(this, this._settings);
+    this._dragSnap.enable();
   }
 
   disable() {
+    if (this._dragSnap) {
+      this._dragSnap.disable();
+      this._dragSnap = null;
+    }
     if (this._settingsChangedId) {
       this._settings.disconnect(this._settingsChangedId);
       this._settingsChangedId = null;

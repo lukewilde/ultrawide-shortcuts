@@ -20,5 +20,23 @@
       </description>
     </key>
 
+    <key type="b" name="drag-snap-enabled">
+      <default>true</default>
+      <summary>Enable drag-to-snap</summary>
+      <description>When enabled, dragging a window shows a hint overlay for the nearest configured grid position and snaps the window to it on release.</description>
+    </key>
+
+    <key type="i" name="drag-hint-opacity">
+      <default>40</default>
+      <range min="0" max="100"/>
+      <summary>Drag hint fill opacity (0-100)</summary>
+    </key>
+
+    <key type="i" name="drag-hint-border-width">
+      <default>2</default>
+      <range min="0" max="20"/>
+      <summary>Drag hint border thickness (px)</summary>
+    </key>
+
   </schema>
 </schemalist>
