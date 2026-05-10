@@ -15,15 +15,15 @@ A GNOME Shell extension that binds keyboard shortcuts to applications. Launch ap
 
 ```bash
 cd ~/.local/share/gnome-shell/extensions
-git clone git@github.com:lukewilde/ultrawide-shortcuts.git ultrawide-shortcuts@ding
-cd ultrawide-shortcuts@ding
+git clone git@github.com:lukewilde/ultrawide-shortcuts.git ultrawide-shortcuts@lukewilde.co.uk
+cd ultrawide-shortcuts@lukewilde.co.uk
 glib-compile-schemas schemas/
 ```
 
 Restart your GNOME session (log out / log in) before running:
 
 ```bash
-gnome-extensions enable ultrawide-shortcuts@ding
+gnome-extensions enable ultrawide-shortcuts@lukewilde.co.uk
 ```
 
 ## Configure
@@ -31,7 +31,7 @@ gnome-extensions enable ultrawide-shortcuts@ding
 Open the preferences UI:
 
 ```bash
-gnome-extensions prefs ultrawide-shortcuts@ding
+gnome-extensions prefs ultrawide-shortcuts@lukewilde.co.uk
 ```
 
 Each binding has three fields:

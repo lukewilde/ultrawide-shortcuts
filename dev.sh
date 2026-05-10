@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXT="ultrawide-shortcuts@ding"
+EXT="ultrawide-shortcuts@lukewilde.co.uk"
 DBUS_PATH="/org/gnome/Shell/Extensions/UltrawideShortcuts"
 DBUS_IFACE="org.gnome.Shell.Extensions.UltrawideShortcuts"
 DEBUG_FILE="/tmp/ultrawide-shortcuts-debug"
