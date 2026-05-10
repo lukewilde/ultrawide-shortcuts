@@ -112,7 +112,12 @@ export class DragSnapManager {
   _onGrabEnd(_display, window, _op) {
     this._stopPoll();
 
-    if (this._draggedWindow && this._draggedWindow === window && this._currentRect) {
+    // Recheck modifier at release — guards against a stale _currentRect when
+    // the user lets go of the modifier and mouse button at the same instant.
+    const [, , modMask] = global.get_pointer();
+    const stillHeld = this._selectGrid(modMask & TRACKED_MOD_MASK) !== null;
+
+    if (stillHeld && this._draggedWindow && this._draggedWindow === window && this._currentRect) {
       const rect = this._currentRect;
       const w = window;
       // Defer commit — Mutter may still be finalizing the grab.
@@ -159,12 +164,6 @@ export class DragSnapManager {
     const [px, py, modMask] = global.get_pointer();
     const tracked = modMask & TRACKED_MOD_MASK;
 
-    // Ctrl held overrides everything: free move, no hint.
-    if (tracked & Clutter.ModifierType.CONTROL_MASK) {
-      this._clearHint();
-      return;
-    }
-
     const grid = this._selectGrid(tracked);
     if (!grid) { this._clearHint(); return; }
 
@@ -193,15 +192,17 @@ export class DragSnapManager {
     if (this._overlay) this._overlay.hide();
   }
 
-  // Exact-match: a grid with dragModifier='shift' wins only when *only* Shift
-  // is held. Prevents Shift+Alt activating both a Shift grid and an Alt grid.
+  // Opt-in: snap activates only while a configured modifier is held. Exact
+  // mask match — Shift+Alt does not activate a Shift-only grid. 'none' means
+  // snap disabled for that grid.
   _selectGrid(trackedMask) {
+    if (trackedMask === 0) return null;
     const positions = this._extension._getPositions();
     for (const grid of positions) {
       const name = (grid.dragModifier || 'none').toLowerCase();
-      if (name === 'ctrl') continue; // Ctrl is reserved as the disable key.
+      if (name === 'none') continue;
       const mask = MOD_NAME_TO_MASK[name];
-      if (mask === undefined) continue;
+      if (!mask) continue;
       if (trackedMask === mask) return grid;
     }
     return null;

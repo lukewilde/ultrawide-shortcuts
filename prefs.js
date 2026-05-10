@@ -693,14 +693,14 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
 
   _makeDragModifierRow(position, positionIndex) {
     const modifiers = ['none', 'shift', 'alt', 'super'];
-    const labels = ['None', 'Shift', 'Alt', 'Super'];
+    const labels = ['None (snap disabled)', 'Shift', 'Alt', 'Super'];
 
     const model = new Gtk.StringList();
     labels.forEach(l => model.append(l));
 
     const row = new Adw.ComboRow({
       title: 'Drag Modifier',
-      subtitle: 'Activates this grid during drag-to-snap (Ctrl always disables snapping)',
+      subtitle: 'Hold this key while dragging a window to snap into this grid',
       model,
     });
 
