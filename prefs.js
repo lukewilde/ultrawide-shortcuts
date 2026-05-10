@@ -114,15 +114,15 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     const group = new Adw.PreferencesGroup({
       title: 'Drag-to-Snap',
       description:
-        'Show a hint and snap windows to grid positions while dragging. ' +
-        'Hold Ctrl during drag to disable snapping. Each grid can be assigned ' +
-        'a modifier key on the Window Positions page.',
+        'Snap windows into configured grid positions while dragging. ' +
+        'Snapping activates only while you hold the modifier key assigned to a grid. ' +
+        'Configure modifier keys on the Window Positions page.',
     });
     page.add(group);
 
     const enableRow = new Adw.SwitchRow({
       title: 'Enable Drag-to-Snap',
-      subtitle: 'Show snap hint while dragging windows',
+      subtitle: 'Snap to grid when dragging with the assigned modifier held',
     });
     this._settings.bind('drag-snap-enabled', enableRow, 'active',
       Gio.SettingsBindFlags.DEFAULT);

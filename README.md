@@ -70,6 +70,14 @@ Each binding has three fields:
 | 2   | Bottom center |
 | 3   | Bottom right  |
 
+## Drag-to-Snap
+
+Hold a modifier key while dragging a window to snap it to the nearest grid position. Each grid can have its own modifier — configure them on the Window Positions page in preferences.
+
+- Snapping is **opt-in**: no modifier held = normal drag, no interference.
+- Release the mouse while holding the modifier to commit the snap.
+- Set a grid's modifier to **None** to exclude it from drag-to-snap.
+
 ## Development
 
 ```bash
