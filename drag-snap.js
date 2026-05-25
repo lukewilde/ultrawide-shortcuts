@@ -13,17 +13,13 @@ import { gridToPixels } from './positioning.js';
 const POLL_INTERVAL_MS = 16;
 
 const TRACKED_MOD_MASK =
-  Clutter.ModifierType.SHIFT_MASK |
   Clutter.ModifierType.CONTROL_MASK |
-  Clutter.ModifierType.MOD1_MASK |
-  Clutter.ModifierType.MOD4_MASK;
+  Clutter.ModifierType.MOD1_MASK;
 
 const MOD_NAME_TO_MASK = {
   none: 0,
-  shift: Clutter.ModifierType.SHIFT_MASK,
   ctrl: Clutter.ModifierType.CONTROL_MASK,
   alt: Clutter.ModifierType.MOD1_MASK,
-  super: Clutter.ModifierType.MOD4_MASK,
 };
 
 // libadwaita standalone accent palette (GNOME 47+).

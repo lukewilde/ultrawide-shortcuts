@@ -77,6 +77,11 @@ Hold a modifier key while dragging a window to snap it to the nearest grid posit
 - Snapping is **opt-in**: no modifier held = normal drag, no interference.
 - Release the mouse while holding the modifier to commit the snap.
 - Set a grid's modifier to **None** to exclude it from drag-to-snap.
+- Available modifiers: **Ctrl**, **Alt**. (Shift and Super are intercepted by the compositor for window manipulation, so they can't be used here.)
+- GNOME's built-in edge tiling will compete with drag-to-snap — disable it for best results:
+  ```bash
+  gsettings set org.gnome.mutter edge-tiling false
+  ```
 
 ## Development
 

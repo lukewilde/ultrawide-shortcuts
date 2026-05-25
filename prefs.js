@@ -116,7 +116,12 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       description:
         'Snap windows into configured grid positions while dragging. ' +
         'Snapping activates only while you hold the modifier key assigned to a grid. ' +
-        'Configure modifier keys on the Window Positions page.',
+        'Configure modifier keys on the Window Positions page.\n\n' +
+        'Note: GNOME\'s built-in edge tiling will fight this feature — drag a ' +
+        'window against a screen edge and the compositor snaps it to a half/quarter ' +
+        'before this extension can apply a grid position. For best results, disable ' +
+        'native edge tiling: run\n' +
+        '    gsettings set org.gnome.mutter edge-tiling false',
     });
     page.add(group);
 
@@ -692,8 +697,8 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
   }
 
   _makeDragModifierRow(position, positionIndex) {
-    const modifiers = ['none', 'shift', 'alt', 'super'];
-    const labels = ['None (snap disabled)', 'Shift', 'Alt', 'Super'];
+    const modifiers = ['none', 'ctrl', 'alt'];
+    const labels = ['None (snap disabled)', 'Ctrl', 'Alt'];
 
     const model = new Gtk.StringList();
     labels.forEach(l => model.append(l));
