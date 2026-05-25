@@ -188,12 +188,10 @@ export class EdgeSnapManager {
     }
 
     const edges = {
-      left:   px - wa.x < threshold,
-      right:  (wa.x + wa.width) - px < threshold,
-      top:    py - wa.y < threshold,
-      bottom: (wa.y + wa.height) - py < threshold,
+      left:  px - wa.x < threshold,
+      right: (wa.x + wa.width) - px < threshold,
     };
-    const inZone = edges.left || edges.right || edges.top || edges.bottom;
+    const inZone = edges.left || edges.right;
     if (!inZone) {
       this._lockedCandidates = null;
       this._clearHint();
@@ -209,15 +207,12 @@ export class EdgeSnapManager {
     this._updateOverlay(bestRect);
   }
 
-  // Position along the edge maps to a width-sorted index — higher numeric Y on
-  // vertical edges picks wider candidates; higher X on horizontal edges does
-  // the same. At a corner the closest-by-center between edge picks wins.
+  // Pointer Y along the edge picks a width-sorted candidate — higher up the
+  // screen (smaller Y) picks the widest rect.
   _pickCandidate(groups, wa, edges, px, py) {
     const picks = [];
-    if (edges.left   && groups.left.length)   picks.push(this._cyclePick(groups.left,   py, wa.y, wa.height));
-    if (edges.right  && groups.right.length)  picks.push(this._cyclePick(groups.right,  py, wa.y, wa.height));
-    if (edges.top    && groups.top.length)    picks.push(this._cyclePick(groups.top,    px, wa.x, wa.width));
-    if (edges.bottom && groups.bottom.length) picks.push(this._cyclePick(groups.bottom, px, wa.x, wa.width));
+    if (edges.left  && groups.left.length)  picks.push(this._cyclePick(groups.left,  py, wa.y, wa.height));
+    if (edges.right && groups.right.length) picks.push(this._cyclePick(groups.right, py, wa.y, wa.height));
     if (picks.length === 0) return null;
     if (picks.length === 1) return picks[0];
     let best = null;
@@ -240,7 +235,7 @@ export class EdgeSnapManager {
 
   _collectCandidates(wa, edges) {
     const positions = this._extension._getPositions();
-    const groups = { left: [], right: [], top: [], bottom: [] };
+    const groups = { left: [], right: [] };
     for (const grid of positions) {
       if (!grid.edgeSnapEnabled) continue;
       const margin = grid.edgeMargin || 0;
@@ -259,26 +254,21 @@ export class EdgeSnapManager {
           const c2 = Math.max(pos.anchor.col, pos.target.col);
           const r1 = Math.min(pos.anchor.row, pos.target.row);
           const r2 = Math.max(pos.anchor.row, pos.target.row);
-          const onLeft   = c1 === 1;
-          const onRight  = c2 === grid.cols;
-          const onTop    = r1 === 1;
-          const onBottom = r2 === grid.rows;
-          if (!(onLeft || onRight || onTop || onBottom)) continue;
+          const onLeft  = c1 === 1;
+          const onRight = c2 === grid.cols;
+          if (!(onLeft || onRight)) continue;
           const sel = {
             anchor: { col: c1 - 1, row: r1 - 1 },
             target: { col: c2 - 1, row: r2 - 1 },
           };
           const rect = gridToPixels(sel, gridSize, workArea, cellGap);
-          if (edges.left   && onLeft)   groups.left.push(rect);
-          if (edges.right  && onRight)  groups.right.push(rect);
-          if (edges.top    && onTop)    groups.top.push(rect);
-          if (edges.bottom && onBottom) groups.bottom.push(rect);
+          if (edges.left  && onLeft)  groups.left.push(rect);
+          if (edges.right && onRight) groups.right.push(rect);
         }
       }
     }
-    // Dedupe identical rects so duplicate shortcut entries don't widen the band.
-    // Sort ascending by extent perpendicular to the edge — index N picks the
-    // Nth-widest candidate at that position along the edge.
+    // Dedupe identical rects, then sort descending by width — index 0 (top of
+    // screen) is the widest candidate.
     const dedupe = arr => {
       const seen = new Set();
       const out = [];
@@ -290,10 +280,8 @@ export class EdgeSnapManager {
       }
       return out;
     };
-    groups.left   = dedupe(groups.left).sort((a, b) => a.width  - b.width);
-    groups.right  = dedupe(groups.right).sort((a, b) => a.width  - b.width);
-    groups.top    = dedupe(groups.top).sort((a, b) => a.height - b.height);
-    groups.bottom = dedupe(groups.bottom).sort((a, b) => a.height - b.height);
+    groups.left  = dedupe(groups.left).sort((a, b) => b.width - a.width);
+    groups.right = dedupe(groups.right).sort((a, b) => b.width - a.width);
     return groups;
   }
 

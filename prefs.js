@@ -194,42 +194,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       Gio.SettingsBindFlags.DEFAULT);
     thresholdRow.add_suffix(thresholdSpin);
     edgeGroup.add(thresholdRow);
-
-    edgeGroup.add(this._makeMutterTilingRow());
-  }
-
-  _makeMutterTilingRow() {
-    const cmd = 'gsettings set org.gnome.mutter edge-tiling false';
-    const row = new Adw.ActionRow({
-      title: 'Conflicts with native edge tiling',
-      subtitle: 'GNOME may snap windows to half-screen before edge snapping fires',
-    });
-    const cmdLabel = new Gtk.Label({
-      label: cmd,
-      selectable: true,
-      css_classes: ['monospace', 'dim-label'],
-      valign: Gtk.Align.CENTER,
-      xalign: 0,
-    });
-    const copyBtn = new Gtk.Button({
-      icon_name: 'edit-copy-symbolic',
-      valign: Gtk.Align.CENTER,
-      tooltip_text: 'Copy command',
-      css_classes: ['flat'],
-    });
-    copyBtn.connect('clicked', () => {
-      const display = Gdk.Display.get_default();
-      const clipboard = display?.get_clipboard();
-      if (clipboard) clipboard.set(cmd);
-      copyBtn.set_icon_name('object-select-symbolic');
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1200, () => {
-        copyBtn.set_icon_name('edit-copy-symbolic');
-        return GLib.SOURCE_REMOVE;
-      });
-    });
-    row.add_suffix(cmdLabel);
-    row.add_suffix(copyBtn);
-    return row;
   }
 
   _getBindings() {
