@@ -116,12 +116,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       description:
         'Snap windows into configured grid positions while dragging. ' +
         'Snapping activates only while you hold the modifier key assigned to a grid. ' +
-        'Configure modifier keys on the Window Positions page.\n\n' +
-        'Note: GNOME\'s built-in edge tiling will fight this feature — drag a ' +
-        'window against a screen edge and the compositor snaps it to a half/quarter ' +
-        'before this extension can apply a grid position. For best results, disable ' +
-        'native edge tiling: run\n' +
-        '    gsettings set org.gnome.mutter edge-tiling false',
+        'Configure modifier keys on the Window Positions page.',
     });
     page.add(group);
 
@@ -170,12 +165,8 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     const edgeGroup = new Adw.PreferencesGroup({
       title: 'Edge Snapping',
       description:
-        'Snap windows by dragging them near a monitor edge. No modifier required. ' +
-        'Hold a drag-snap modifier to override.\n\n' +
-        'GNOME\'s built-in edge tiling may conflict with this feature — for best ' +
-        'results, turn off "Edge tiling when dropped at screen edges" in ' +
-        'Settings → Multitasking, or run:\n' +
-        '    gsettings set org.gnome.mutter edge-tiling false',
+        'Drag a window near a monitor edge to snap. No modifier needed. ' +
+        'Hold a drag-snap modifier to override.',
     });
     page.add(edgeGroup);
 
@@ -203,6 +194,42 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       Gio.SettingsBindFlags.DEFAULT);
     thresholdRow.add_suffix(thresholdSpin);
     edgeGroup.add(thresholdRow);
+
+    edgeGroup.add(this._makeMutterTilingRow());
+  }
+
+  _makeMutterTilingRow() {
+    const cmd = 'gsettings set org.gnome.mutter edge-tiling false';
+    const row = new Adw.ActionRow({
+      title: 'Conflicts with native edge tiling',
+      subtitle: 'GNOME may snap windows to half-screen before edge snapping fires',
+    });
+    const cmdLabel = new Gtk.Label({
+      label: cmd,
+      selectable: true,
+      css_classes: ['monospace', 'dim-label'],
+      valign: Gtk.Align.CENTER,
+      xalign: 0,
+    });
+    const copyBtn = new Gtk.Button({
+      icon_name: 'edit-copy-symbolic',
+      valign: Gtk.Align.CENTER,
+      tooltip_text: 'Copy command',
+      css_classes: ['flat'],
+    });
+    copyBtn.connect('clicked', () => {
+      const display = Gdk.Display.get_default();
+      const clipboard = display?.get_clipboard();
+      if (clipboard) clipboard.set(cmd);
+      copyBtn.set_icon_name('object-select-symbolic');
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1200, () => {
+        copyBtn.set_icon_name('edit-copy-symbolic');
+        return GLib.SOURCE_REMOVE;
+      });
+    });
+    row.add_suffix(cmdLabel);
+    row.add_suffix(copyBtn);
+    return row;
   }
 
   _getBindings() {

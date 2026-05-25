@@ -203,30 +203,44 @@ export class EdgeSnapManager {
     if (!this._lockedCandidates) {
       this._lockedCandidates = this._collectCandidates(wa, edges);
     }
-    if (this._lockedCandidates.length === 0) {
-      this._clearHint();
-      return;
-    }
-
-    let bestRect = null;
-    let bestDist = Infinity;
-    for (const rect of this._lockedCandidates) {
-      const cx = rect.x + rect.width / 2;
-      const cy = rect.y + rect.height / 2;
-      const dx = px - cx;
-      const dy = py - cy;
-      const d = dx * dx + dy * dy;
-      if (d < bestDist) { bestDist = d; bestRect = rect; }
-    }
-
+    const bestRect = this._pickCandidate(this._lockedCandidates, wa, edges, px, py);
     if (!bestRect) { this._clearHint(); return; }
     this._currentRect = bestRect;
     this._updateOverlay(bestRect);
   }
 
+  // Position along the edge maps to a width-sorted index — higher numeric Y on
+  // vertical edges picks wider candidates; higher X on horizontal edges does
+  // the same. At a corner the closest-by-center between edge picks wins.
+  _pickCandidate(groups, wa, edges, px, py) {
+    const picks = [];
+    if (edges.left   && groups.left.length)   picks.push(this._cyclePick(groups.left,   py, wa.y, wa.height));
+    if (edges.right  && groups.right.length)  picks.push(this._cyclePick(groups.right,  py, wa.y, wa.height));
+    if (edges.top    && groups.top.length)    picks.push(this._cyclePick(groups.top,    px, wa.x, wa.width));
+    if (edges.bottom && groups.bottom.length) picks.push(this._cyclePick(groups.bottom, px, wa.x, wa.width));
+    if (picks.length === 0) return null;
+    if (picks.length === 1) return picks[0];
+    let best = null;
+    let bestDist = Infinity;
+    for (const rect of picks) {
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const d = (px - cx) ** 2 + (py - cy) ** 2;
+      if (d < bestDist) { bestDist = d; best = rect; }
+    }
+    return best;
+  }
+
+  _cyclePick(sorted, p, axisStart, axisLength) {
+    const n = sorted.length;
+    if (n === 1) return sorted[0];
+    const t = Math.max(0, Math.min(0.9999, (p - axisStart) / axisLength));
+    return sorted[Math.floor(t * n)];
+  }
+
   _collectCandidates(wa, edges) {
     const positions = this._extension._getPositions();
-    const candidates = [];
+    const groups = { left: [], right: [], top: [], bottom: [] };
     for (const grid of positions) {
       if (!grid.edgeSnapEnabled) continue;
       const margin = grid.edgeMargin || 0;
@@ -245,21 +259,42 @@ export class EdgeSnapManager {
           const c2 = Math.max(pos.anchor.col, pos.target.col);
           const r1 = Math.min(pos.anchor.row, pos.target.row);
           const r2 = Math.max(pos.anchor.row, pos.target.row);
-          const touchesEdge =
-            (edges.left   && c1 === 1) ||
-            (edges.right  && c2 === grid.cols) ||
-            (edges.top    && r1 === 1) ||
-            (edges.bottom && r2 === grid.rows);
-          if (!touchesEdge) continue;
+          const onLeft   = c1 === 1;
+          const onRight  = c2 === grid.cols;
+          const onTop    = r1 === 1;
+          const onBottom = r2 === grid.rows;
+          if (!(onLeft || onRight || onTop || onBottom)) continue;
           const sel = {
             anchor: { col: c1 - 1, row: r1 - 1 },
             target: { col: c2 - 1, row: r2 - 1 },
           };
-          candidates.push(gridToPixels(sel, gridSize, workArea, cellGap));
+          const rect = gridToPixels(sel, gridSize, workArea, cellGap);
+          if (edges.left   && onLeft)   groups.left.push(rect);
+          if (edges.right  && onRight)  groups.right.push(rect);
+          if (edges.top    && onTop)    groups.top.push(rect);
+          if (edges.bottom && onBottom) groups.bottom.push(rect);
         }
       }
     }
-    return candidates;
+    // Dedupe identical rects so duplicate shortcut entries don't widen the band.
+    // Sort ascending by extent perpendicular to the edge — index N picks the
+    // Nth-widest candidate at that position along the edge.
+    const dedupe = arr => {
+      const seen = new Set();
+      const out = [];
+      for (const r of arr) {
+        const k = `${Math.round(r.x)},${Math.round(r.y)},${Math.round(r.width)},${Math.round(r.height)}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(r);
+      }
+      return out;
+    };
+    groups.left   = dedupe(groups.left).sort((a, b) => a.width  - b.width);
+    groups.right  = dedupe(groups.right).sort((a, b) => a.width  - b.width);
+    groups.top    = dedupe(groups.top).sort((a, b) => a.height - b.height);
+    groups.bottom = dedupe(groups.bottom).sort((a, b) => a.height - b.height);
+    return groups;
   }
 
   _clearHint() {
