@@ -50,5 +50,18 @@
       <summary>Edge snap trigger zone (px)</summary>
     </key>
 
+    <key type="b" name="require-double-press-to-launch">
+      <default>true</default>
+      <summary>Require double-press to launch</summary>
+      <description>When enabled, an app shortcut must be pressed twice within the timeout to launch the app if it is not already running. Focus and cycle behavior is unaffected.</description>
+    </key>
+
+    <key type="i" name="double-press-timeout-ms">
+      <default>600</default>
+      <range min="150" max="2000"/>
+      <summary>Double-press timeout (ms)</summary>
+      <description>Maximum time between the two presses for a launch to be confirmed.</description>
+    </key>
+
   </schema>
 </schemalist>
