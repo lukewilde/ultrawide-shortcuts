@@ -56,6 +56,9 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._presetTimerId = null;
     this._focusHistory = []; // stableSequence[], most-recently-focused first
     this._cycleSnapshot = null; // { wmClass, order: stableSequence[] } — stable order for active cycle
+    this._pendingLaunch = null; // { key, timeoutId } — set after first press, cleared on confirm/timeout
+    this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
+    this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
     this._focusChangedId = global.display.connect(
       'notify::focus-window', this._onFocusChanged.bind(this));
 
@@ -74,6 +77,16 @@ export default class UltrawideShortcutsExtension extends Extension {
       this._unregisterPositions();
       this._registerPositions();
     });
+
+    this._doublePressChangedId = this._settings.connect(
+      'changed::require-double-press-to-launch', () => {
+        this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
+        if (!this._requireDoublePress) this._clearPendingLaunch();
+      });
+    this._doublePressTimeoutChangedId = this._settings.connect(
+      'changed::double-press-timeout-ms', () => {
+        this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
+      });
 
     this._dragSnap = new DragSnapManager(this, this._settings);
     this._dragSnap.enable();
@@ -98,6 +111,15 @@ export default class UltrawideShortcutsExtension extends Extension {
       this._settings.disconnect(this._positionsChangedId);
       this._positionsChangedId = null;
     }
+    if (this._doublePressChangedId) {
+      this._settings.disconnect(this._doublePressChangedId);
+      this._doublePressChangedId = null;
+    }
+    if (this._doublePressTimeoutChangedId) {
+      this._settings.disconnect(this._doublePressTimeoutChangedId);
+      this._doublePressTimeoutChangedId = null;
+    }
+    this._clearPendingLaunch();
 
     this._unregisterBindings();
     this._unregisterPositions();
@@ -166,7 +188,8 @@ export default class UltrawideShortcutsExtension extends Extension {
           if (activatedAction === action) {
             this.magic_key_pressed(
               binding.wmClass,
-              binding.command
+              binding.command,
+              binding.shortcut
             );
           }
         }
@@ -359,25 +382,45 @@ export default class UltrawideShortcutsExtension extends Extension {
     return sorted;
   }
 
-  magic_key_pressed(wmClass, command) {
+  magic_key_pressed(wmClass, command, shortcut) {
     const current = this._getActiveWindow();
     const matches = this._findWindows(wmClass);
 
     if (matches.length === 0) {
       // No matching window — launch the application
-      if (!this._launching && command) {
-        this._launching = true;
-        this._launchingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-          this._launching = false;
-          this._launchingTimerId = null;
-          return GLib.SOURCE_REMOVE;
-        });
-        try {
-          GLib.spawn_command_line_async(command);
-        } catch (e) {
-          console.error(`ultrawide-shortcuts: failed to launch '${command}': ${e.message}`);
-          Main.notify('Ultrawide Shortcuts', `Failed to launch: ${command}\n${e.message}`);
+      if (this._launching || !command) return;
+
+      // Only gate accelerator-driven presses (shortcut provided). D-Bus
+      // callers bypass the double-press requirement.
+      if (this._requireDoublePress && shortcut) {
+        if (this._pendingLaunch && this._pendingLaunch.key === shortcut) {
+          this._clearPendingLaunch();
+          // fall through to launch
+        } else {
+          this._clearPendingLaunch();
+          this._showLaunchOsd(wmClass);
+          this._pendingLaunch = {
+            key: shortcut,
+            timeoutId: GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._doublePressTimeoutMs, () => {
+              this._pendingLaunch = null;
+              return GLib.SOURCE_REMOVE;
+            }),
+          };
+          return;
         }
+      }
+
+      this._launching = true;
+      this._launchingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+        this._launching = false;
+        this._launchingTimerId = null;
+        return GLib.SOURCE_REMOVE;
+      });
+      try {
+        GLib.spawn_command_line_async(command);
+      } catch (e) {
+        console.error(`ultrawide-shortcuts: failed to launch '${command}': ${e.message}`);
+        Main.notify('Ultrawide Shortcuts', `Failed to launch: ${command}\n${e.message}`);
       }
     } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {
       // Matching window exists but isn't focused — activate first match
@@ -389,6 +432,33 @@ export default class UltrawideShortcutsExtension extends Extension {
       Main.activateWindow(matches[nextIdx].metaWindow);
     }
     // Single match already focused — do nothing
+  }
+
+  _clearPendingLaunch() {
+    if (!this._pendingLaunch) return;
+    if (this._pendingLaunch.timeoutId)
+      GLib.source_remove(this._pendingLaunch.timeoutId);
+    this._pendingLaunch = null;
+  }
+
+  _showLaunchOsd(wmClass) {
+    const appSystem = Shell.AppSystem.get_default();
+    const lc = wmClass.toLowerCase();
+    let app = appSystem.lookup_app(`${lc}.desktop`);
+    if (!app) {
+      // Fallback: scan installed DesktopAppInfo entries for a matching id or WM class
+      const installed = appSystem.get_installed?.() || [];
+      app = installed.find(info => {
+        const id = (info.get_id?.() || '').toLowerCase();
+        const wm = (info.get_startup_wm_class?.() || '').toLowerCase();
+        return id.includes(lc) || (wm && wm.includes(lc));
+      });
+    }
+
+    const icon = app?.get_icon?.() ?? new Gio.ThemedIcon({ name: 'system-run-symbolic' });
+    const displayName = app?.get_name?.() ?? wmClass;
+    const label = `Press again to launch ${displayName}`;
+    Main.osdWindowManager.show(-1, icon, label, null, null);
   }
 
   list_windows() {

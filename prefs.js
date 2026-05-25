@@ -17,6 +17,42 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     });
     window.add(page);
 
+    const behaviorGroup = new Adw.PreferencesGroup({
+      title: 'App Shortcut Behavior',
+      description: 'Guard against accidental launches by requiring two presses to start an app that is not already running.',
+    });
+    page.add(behaviorGroup);
+
+    const doublePressRow = new Adw.SwitchRow({
+      title: 'Require double-press to launch',
+      subtitle: 'Press the shortcut twice within the timeout to launch the app. Focus and cycle behaviour is unaffected.',
+    });
+    this._settings.bind('require-double-press-to-launch', doublePressRow, 'active',
+      Gio.SettingsBindFlags.DEFAULT);
+    behaviorGroup.add(doublePressRow);
+
+    const timeoutRow = new Adw.ActionRow({
+      title: 'Double-press timeout',
+      subtitle: 'Maximum time between the two presses (ms)',
+    });
+    const timeoutSpin = new Gtk.SpinButton({
+      adjustment: new Gtk.Adjustment({
+        lower: 150, upper: 2000, step_increment: 50, page_increment: 200,
+      }),
+      numeric: true,
+      width_chars: 5,
+      valign: Gtk.Align.CENTER,
+    });
+    this._settings.bind('double-press-timeout-ms', timeoutSpin, 'value',
+      Gio.SettingsBindFlags.DEFAULT);
+    timeoutRow.add_suffix(timeoutSpin);
+    behaviorGroup.add(timeoutRow);
+
+    timeoutRow.set_sensitive(doublePressRow.get_active());
+    doublePressRow.connect('notify::active', () => {
+      timeoutRow.set_sensitive(doublePressRow.get_active());
+    });
+
     this._bindingsGroup = new Adw.PreferencesGroup({
       title: 'App Shortcuts',
       description: 'Each shortcut maps a keyboard shortcut to an application.',
