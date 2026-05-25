@@ -188,10 +188,12 @@ export class EdgeSnapManager {
     }
 
     const edges = {
-      left:  px - wa.x < threshold,
-      right: (wa.x + wa.width) - px < threshold,
+      left:   px - wa.x < threshold,
+      right:  (wa.x + wa.width) - px < threshold,
+      top:    py - wa.y < threshold,
+      bottom: (wa.y + wa.height) - py < threshold,
     };
-    const inZone = edges.left || edges.right;
+    const inZone = edges.left || edges.right || edges.top || edges.bottom;
     if (!inZone) {
       this._lockedCandidates = null;
       this._clearHint();
@@ -207,23 +209,18 @@ export class EdgeSnapManager {
     this._updateOverlay(bestRect);
   }
 
-  // Pointer Y along the edge picks a width-sorted candidate — higher up the
-  // screen (smaller Y) picks the widest rect.
+  // Vertical edges cycle: pointer Y maps to width-sorted index (widest at top).
+  // Horizontal edges pick by closest pixel-center to pointer. At a corner, the
+  // two per-edge picks compete on closest-center.
   _pickCandidate(groups, wa, edges, px, py) {
     const picks = [];
-    if (edges.left  && groups.left.length)  picks.push(this._cyclePick(groups.left,  py, wa.y, wa.height));
-    if (edges.right && groups.right.length) picks.push(this._cyclePick(groups.right, py, wa.y, wa.height));
+    if (edges.left   && groups.left.length)   picks.push(this._cyclePick(groups.left,   py, wa.y, wa.height));
+    if (edges.right  && groups.right.length)  picks.push(this._cyclePick(groups.right,  py, wa.y, wa.height));
+    if (edges.top    && groups.top.length)    picks.push(this._closestByCenter(groups.top,    px, py));
+    if (edges.bottom && groups.bottom.length) picks.push(this._closestByCenter(groups.bottom, px, py));
     if (picks.length === 0) return null;
     if (picks.length === 1) return picks[0];
-    let best = null;
-    let bestDist = Infinity;
-    for (const rect of picks) {
-      const cx = rect.x + rect.width / 2;
-      const cy = rect.y + rect.height / 2;
-      const d = (px - cx) ** 2 + (py - cy) ** 2;
-      if (d < bestDist) { bestDist = d; best = rect; }
-    }
-    return best;
+    return this._closestByCenter(picks, px, py);
   }
 
   _cyclePick(sorted, p, axisStart, axisLength) {
@@ -233,9 +230,21 @@ export class EdgeSnapManager {
     return sorted[Math.floor(t * n)];
   }
 
+  _closestByCenter(rects, px, py) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const rect of rects) {
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const d = (px - cx) ** 2 + (py - cy) ** 2;
+      if (d < bestDist) { bestDist = d; best = rect; }
+    }
+    return best;
+  }
+
   _collectCandidates(wa, edges) {
     const positions = this._extension._getPositions();
-    const groups = { left: [], right: [] };
+    const groups = { left: [], right: [], top: [], bottom: [] };
     for (const grid of positions) {
       if (!grid.edgeSnapEnabled) continue;
       const margin = grid.edgeMargin || 0;
@@ -254,21 +263,26 @@ export class EdgeSnapManager {
           const c2 = Math.max(pos.anchor.col, pos.target.col);
           const r1 = Math.min(pos.anchor.row, pos.target.row);
           const r2 = Math.max(pos.anchor.row, pos.target.row);
-          const onLeft  = c1 === 1;
-          const onRight = c2 === grid.cols;
-          if (!(onLeft || onRight)) continue;
+          const onLeft   = c1 === 1;
+          const onRight  = c2 === grid.cols;
+          const onTop    = r1 === 1;
+          const onBottom = r2 === grid.rows;
+          if (!(onLeft || onRight || onTop || onBottom)) continue;
           const sel = {
             anchor: { col: c1 - 1, row: r1 - 1 },
             target: { col: c2 - 1, row: r2 - 1 },
           };
           const rect = gridToPixels(sel, gridSize, workArea, cellGap);
-          if (edges.left  && onLeft)  groups.left.push(rect);
-          if (edges.right && onRight) groups.right.push(rect);
+          if (edges.left   && onLeft)   groups.left.push(rect);
+          if (edges.right  && onRight)  groups.right.push(rect);
+          if (edges.top    && onTop)    groups.top.push(rect);
+          if (edges.bottom && onBottom) groups.bottom.push(rect);
         }
       }
     }
-    // Dedupe identical rects, then sort descending by width — index 0 (top of
-    // screen) is the widest candidate.
+    // Dedupe identical rects across all buckets. Left/right are sorted
+    // descending by width (index 0 = widest at top of screen) for _cyclePick.
+    // Top/bottom are not sorted — _closestByCenter does its own scan.
     const dedupe = arr => {
       const seen = new Set();
       const out = [];
@@ -280,8 +294,10 @@ export class EdgeSnapManager {
       }
       return out;
     };
-    groups.left  = dedupe(groups.left).sort((a, b) => b.width - a.width);
-    groups.right = dedupe(groups.right).sort((a, b) => b.width - a.width);
+    groups.left   = dedupe(groups.left).sort((a, b) => b.width - a.width);
+    groups.right  = dedupe(groups.right).sort((a, b) => b.width - a.width);
+    groups.top    = dedupe(groups.top);
+    groups.bottom = dedupe(groups.bottom);
     return groups;
   }
 
