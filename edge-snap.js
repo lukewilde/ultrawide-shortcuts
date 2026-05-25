@@ -294,10 +294,13 @@ export class EdgeSnapManager {
       }
       return out;
     };
+    // Horizontal tie-break: top edge prefers narrowest, bottom edge prefers
+    // widest. _closestByCenter scans in order with strict `<`, so the first
+    // entry wins ties.
     groups.left   = dedupe(groups.left).sort((a, b) => b.width - a.width);
     groups.right  = dedupe(groups.right).sort((a, b) => b.width - a.width);
-    groups.top    = dedupe(groups.top);
-    groups.bottom = dedupe(groups.bottom);
+    groups.top    = dedupe(groups.top).sort((a, b) => a.width - b.width);
+    groups.bottom = dedupe(groups.bottom).sort((a, b) => b.width - a.width);
     return groups;
   }
 
