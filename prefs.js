@@ -47,9 +47,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       }
     });
 
-    // --- Drag-to-Snap page ---
-    this._buildDragSnapPage(window);
-
     // --- Window Positions page ---
     this._positionsPage = new Adw.PreferencesPage({
       title: 'Window Positions',
@@ -102,6 +99,9 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
         this._scrollRestoreId = null;
       }
     });
+
+    // --- Drag-to-Snap page ---
+    this._buildDragSnapPage(window);
   }
 
   _buildDragSnapPage(window) {
@@ -166,6 +166,43 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       Gio.SettingsBindFlags.DEFAULT);
     borderRow.add_suffix(borderSpin);
     group.add(borderRow);
+
+    const edgeGroup = new Adw.PreferencesGroup({
+      title: 'Edge Snapping',
+      description:
+        'Snap windows by dragging them near a monitor edge. No modifier required. ' +
+        'Hold a drag-snap modifier to override.\n\n' +
+        'GNOME\'s built-in edge tiling may conflict with this feature — for best ' +
+        'results, turn off "Edge tiling when dropped at screen edges" in ' +
+        'Settings → Multitasking, or run:\n' +
+        '    gsettings set org.gnome.mutter edge-tiling false',
+    });
+    page.add(edgeGroup);
+
+    const edgeEnableRow = new Adw.SwitchRow({
+      title: 'Enable Edge Snapping',
+      subtitle: 'Show a snap hint when dragging near a monitor edge',
+    });
+    this._settings.bind('edge-snap-enabled', edgeEnableRow, 'active',
+      Gio.SettingsBindFlags.DEFAULT);
+    edgeGroup.add(edgeEnableRow);
+
+    const thresholdRow = new Adw.ActionRow({
+      title: 'Trigger Zone',
+      subtitle: 'Distance from edge (px) that activates the snap hint',
+    });
+    const thresholdSpin = new Gtk.SpinButton({
+      adjustment: new Gtk.Adjustment({
+        lower: 0, upper: 200, step_increment: 4, page_increment: 16,
+      }),
+      numeric: true,
+      width_chars: 4,
+      valign: Gtk.Align.CENTER,
+    });
+    this._settings.bind('edge-snap-threshold', thresholdSpin, 'value',
+      Gio.SettingsBindFlags.DEFAULT);
+    thresholdRow.add_suffix(thresholdSpin);
+    edgeGroup.add(thresholdRow);
   }
 
   _getBindings() {
@@ -669,6 +706,16 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     ));
 
     group.add(this._makeDragModifierRow(position, positionIndex));
+
+    const edgeSnapRow = new Adw.SwitchRow({
+      title: 'Include in edge snapping',
+      subtitle: 'Use this grid as a source of edge-snap candidates',
+      active: position.edgeSnapEnabled === true,
+    });
+    edgeSnapRow.connect('notify::active', () => {
+      this._updatePosition(positionIndex, 'edgeSnapEnabled', edgeSnapRow.get_active());
+    });
+    group.add(edgeSnapRow);
 
     const shortcutsHeader = new Adw.ActionRow({ title: 'Shortcuts' });
     shortcutsHeader.set_activatable(false);

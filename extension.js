@@ -6,6 +6,7 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gridToPixels } from './positioning.js';
 import { DragSnapManager } from './drag-snap.js';
+import { EdgeSnapManager } from './edge-snap.js';
 
 // Built-in fallback positions — mirrors the schema default.
 // Used only when the 'positions' GSettings key is empty or unparseable.
@@ -13,21 +14,23 @@ const DEFAULT_POSITIONS = [
   {
     name: 'Columns',
     cols: 16, rows: 1, edgeMargin: 0, cellGap: 0,
+    dragModifier: 'ctrl', edgeSnapEnabled: true,
     shortcuts: [
-      { shortcut: '<Alt><Super>1', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } }] },
-      { shortcut: '<Alt><Super>2', positions: [{ anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 12, row: 2 } }] },
+      { shortcut: '<Alt><Super>1', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } }, { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } }] },
+      { shortcut: '<Alt><Super>2', positions: [{ anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 8, row: 1 } }] },
       { shortcut: '<Alt><Super>3', positions: [{ anchor: { col: 13, row: 1 }, target: { col: 16, row: 1 } }, { anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } }] },
       { shortcut: '<Alt><Super>4', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 1, row: 1 }, target: { col: 12, row: 1 } }] },
-      { shortcut: '<Alt><Super>5', positions: [{ anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } }, { anchor: { col: 4, row: 1 }, target: { col: 13, row: 1 } }] },
+      { shortcut: '<Alt><Super>5', positions: [{ anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } }, { anchor: { col: 4, row: 1 }, target: { col: 13, row: 1 } }, { anchor: { col: 3, row: 1 }, target: { col: 14, row: 1 } }] },
       { shortcut: '<Alt><Super>6', positions: [{ anchor: { col: 9, row: 1 }, target: { col: 16, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 16, row: 1 } }] },
       { shortcut: '<Alt><Super>7', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } }] },
-      { shortcut: '<Alt><Super>8', positions: [{ anchor: { col: 9, row: 1 }, target: { col: 13, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 12, row: 1 } }] },
+      { shortcut: '<Alt><Super>8', positions: [{ anchor: { col: 9, row: 1 }, target: { col: 13, row: 1 } }, { anchor: { col: 9, row: 1 }, target: { col: 12, row: 1 } }] },
       { shortcut: '<Alt><Super>9', positions: [{ anchor: { col: 14, row: 1 }, target: { col: 16, row: 1 } }] },
     ],
   },
   {
     name: 'Floating Grid',
-    cols: 8, rows: 4, edgeMargin: 24, cellGap: 24,
+    cols: 8, rows: 4, edgeMargin: 0, cellGap: 0,
+    dragModifier: 'alt', edgeSnapEnabled: false,
     shortcuts: [
       { shortcut: '<Shift><Alt><Super>1', positions: [{ anchor: { col: 1, row: 3 }, target: { col: 2, row: 4 } }] },
       { shortcut: '<Shift><Alt><Super>2', positions: [{ anchor: { col: 4, row: 3 }, target: { col: 5, row: 4 } }] },
@@ -74,9 +77,15 @@ export default class UltrawideShortcutsExtension extends Extension {
 
     this._dragSnap = new DragSnapManager(this, this._settings);
     this._dragSnap.enable();
+    this._edgeSnap = new EdgeSnapManager(this, this._settings);
+    this._edgeSnap.enable();
   }
 
   disable() {
+    if (this._edgeSnap) {
+      this._edgeSnap.disable();
+      this._edgeSnap = null;
+    }
     if (this._dragSnap) {
       this._dragSnap.disable();
       this._dragSnap = null;
