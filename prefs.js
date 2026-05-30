@@ -2,6 +2,7 @@ import Adw from 'gi://Adw';
 import Gdk from 'gi://Gdk';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import GioUnix from 'gi://GioUnix';
 import GLib from 'gi://GLib';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
@@ -336,11 +337,46 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     this._window.add_controller(controller);
   }
 
+  // Resolve a wmClass to a desktop app via the same .desktop database the
+  // shell's AppSystem uses (unavailable in the prefs process). Direct id
+  // lookup first, then a StartupWMClass/id scan — mirrors _showLaunchOsd.
+  _resolveAppInfo(wmClass) {
+    if (!wmClass) return null;
+    const lc = wmClass.toLowerCase();
+    let info = GioUnix.DesktopAppInfo.new(`${lc}.desktop`);
+    if (!info) {
+      info = Gio.AppInfo.get_all().find(a => {
+        const id = (a.get_id?.() || '').toLowerCase();
+        const wm = (a.get_startup_wm_class?.() || '').toLowerCase();
+        return id.includes(lc) || (wm && wm.includes(lc));
+      }) ?? null;
+    }
+    return info;
+  }
+
+  // Set a binding row's icon prefix, title (friendly app name) and subtitle
+  // (wmClass · shortcut) from the current saved binding. Falls back to the
+  // raw wmClass + a generic icon when resolution misses — matching the OSD.
+  _refreshBindingHeader(row, image, index) {
+    const binding = this._getBindings()[index] ?? {};
+    const wmClass = binding.wmClass || '';
+    const info = this._resolveAppInfo(wmClass);
+
+    const gicon = info?.get_icon?.();
+    if (gicon) image.set_from_gicon(gicon);
+    else image.set_from_icon_name('application-x-executable-symbolic');
+
+    const name = info?.get_display_name?.() || info?.get_name?.();
+    const shortcut = this._accelToLabel(binding.shortcut);
+    row.set_title(GLib.markup_escape_text(name || wmClass || '(empty)', -1));
+    row.set_subtitle(GLib.markup_escape_text(shortcut, -1));
+  }
+
   _createBindingRow(binding, index) {
-    const row = new Adw.ExpanderRow({
-      title: binding.wmClass || '(empty)',
-      subtitle: GLib.markup_escape_text(binding.shortcut || 'No shortcut', -1),
-    });
+    const row = new Adw.ExpanderRow();
+    const appIcon = new Gtk.Image({ pixel_size: 32, valign: Gtk.Align.CENTER });
+    row.add_prefix(appIcon);
+    this._refreshBindingHeader(row, appIcon, index);
 
     // Shortcut field
     const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' });
@@ -358,7 +394,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       const currentShortcut = this._getBindings()[index]?.shortcut ?? '';
       this._startListening(shortcutLabel, (accel) => {
         this._updateBinding(index, 'shortcut', accel);
-        row.set_subtitle(GLib.markup_escape_text(accel ? this._accelToLabel(accel) : 'No shortcut', -1));
+        this._refreshBindingHeader(row, appIcon, index);
       }, currentShortcut);
     });
     shortcutRow.add_suffix(shortcutLabel);
@@ -366,11 +402,11 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     row.add_row(shortcutRow);
 
     // WM Class field + detect button
-    const wmClassRow = new Adw.EntryRow({ title: 'Application' });
+    const wmClassRow = new Adw.EntryRow({ title: 'Window class' });
     wmClassRow.set_text(binding.wmClass || '');
     wmClassRow.connect('changed', () => {
       this._updateBinding(index, 'wmClass', wmClassRow.get_text());
-      row.set_title(wmClassRow.get_text() || '(empty)');
+      this._refreshBindingHeader(row, appIcon, index);
     });
 
     const detectButton = new Gtk.Button({
