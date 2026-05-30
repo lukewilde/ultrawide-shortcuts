@@ -4,7 +4,8 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels } from './positioning.js';
+import { gridToPixels, pickNeighbour } from './positioning.js';
+import { KeybindingConflictManager } from './keybinding-conflicts.js';
 import { DragSnapManager } from './drag-snap.js';
 import { EdgeSnapManager } from './edge-snap.js';
 
@@ -50,6 +51,8 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._settings = this.getSettings();
     this._actions = [];
     this._positionActions = [];
+    this._navActions = [];
+    this._conflicts = new KeybindingConflictManager(this._settings);
     this._launching = false;
     this._launchingTimerId = null;
     this._lastPreset = null; // { key, windowId, index }
@@ -67,6 +70,8 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._setupDbus();
     this._registerBindings();
     this._registerPositions();
+    this._conflicts.healStaleBackup();
+    this._registerNav();
 
     this._settingsChangedId = this._settings.connect('changed::bindings', () => {
       this._unregisterBindings();
@@ -75,7 +80,9 @@ export default class UltrawideShortcutsExtension extends Extension {
 
     this._positionsChangedId = this._settings.connect('changed::positions', () => {
       this._unregisterPositions();
+      this._unregisterNav();
       this._registerPositions();
+      this._registerNav();
     });
 
     this._doublePressChangedId = this._settings.connect(
@@ -123,6 +130,7 @@ export default class UltrawideShortcutsExtension extends Extension {
 
     this._unregisterBindings();
     this._unregisterPositions();
+    this._unregisterNav();
 
     this._dbus.flush();
     this._dbus.unexport();
@@ -136,6 +144,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     }
 
     this._dbus = null;
+    this._conflicts = null;
     this._settings = null;
     this._lastPreset = null;
     if (this._focusChangedId) {
@@ -282,20 +291,26 @@ export default class UltrawideShortcutsExtension extends Extension {
       target: { col: pos.target.col - 1, row: pos.target.row - 1 },
     };
 
+    this._applySelectionToFocused(ward, focused, selection);
+  }
+
+  _workAreaFor(ward, focused) {
     const monitorIdx = focused.get_monitor();
     const workspace = global.workspace_manager.get_active_workspace();
     const wa = workspace.get_work_area_for_monitor(monitorIdx);
-
     // Apply edgeMargin by shrinking the work area
-    const workArea = {
+    return {
       x: wa.x + ward.edgeMargin,
       y: wa.y + ward.edgeMargin,
       width: wa.width - 2 * ward.edgeMargin,
       height: wa.height - 2 * ward.edgeMargin,
     };
+  }
 
+  // selection is already 0-indexed.
+  _applySelectionToFocused(ward, focused, selection) {
+    const workArea = this._workAreaFor(ward, focused);
     const rect = gridToPixels(selection, { cols: ward.cols, rows: ward.rows }, workArea, ward.cellGap);
-
     focused.unmaximize();
     focused.move_resize_frame(
       false,
@@ -304,6 +319,87 @@ export default class UltrawideShortcutsExtension extends Extension {
       Math.round(rect.width),
       Math.round(rect.height)
     );
+  }
+
+  // --- Directional navigation (move focused window between ward positions) ---
+
+  // Flatten every position (including cycle variants) into pixel candidates.
+  _buildCandidates(ward, focused) {
+    const workArea = this._workAreaFor(ward, focused);
+    const gridSize = { cols: ward.cols, rows: ward.rows };
+    const candidates = [];
+    for (const sc of ward.shortcuts) {
+      for (const pos of sc.positions) {
+        if (!pos?.anchor || !pos?.target) continue;
+        const selection = {
+          anchor: { col: pos.anchor.col - 1, row: pos.anchor.row - 1 },
+          target: { col: pos.target.col - 1, row: pos.target.row - 1 },
+        };
+        const rect = gridToPixels(selection, gridSize, workArea, ward.cellGap);
+        candidates.push({ rect, selection });
+      }
+    }
+    return candidates;
+  }
+
+  _navigate(ward, direction) {
+    const focused = global.display.focus_window;
+    if (!focused) return;
+    const candidates = this._buildCandidates(ward, focused);
+    if (!candidates.length) return;
+    const fr = focused.get_frame_rect();
+    const windowRect = { x: fr.x, y: fr.y, width: fr.width, height: fr.height };
+    const idx = pickNeighbour(windowRect, candidates.map(c => c.rect), direction);
+    if (idx < 0) return;
+    this._applySelectionToFocused(ward, focused, candidates[idx].selection);
+  }
+
+  _navAccels() {
+    const accels = [];
+    for (const ward of this._getPositions()) {
+      if (!ward.navPrefix) continue;
+      for (const key of ['Left', 'Right', 'Up', 'Down'])
+        accels.push(`${ward.navPrefix}${key}`);
+    }
+    return accels;
+  }
+
+  _registerNav() {
+    // Take over colliding GNOME shortcuts before grabbing ours.
+    this._conflicts.takeOver(this._navAccels());
+
+    const dirs = [
+      ['Left', 'left'], ['Right', 'right'],
+      ['Up', 'wider'], ['Down', 'narrower'],
+    ];
+    for (const ward of this._getPositions()) {
+      if (!ward.navPrefix) continue;
+      for (const [key, direction] of dirs) {
+        const accel = `${ward.navPrefix}${key}`;
+        const action = global.display.grab_accelerator(accel, 0);
+        if (action === Meta.KeyBindingAction.NONE) continue;
+
+        const handlerId = global.display.connect(
+          'accelerator-activated',
+          (_display, activatedAction, _deviceId, _timestamp) => {
+            if (activatedAction === action) this._navigate(ward, direction);
+          }
+        );
+
+        const name = Meta.external_binding_name_for_action(action);
+        Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+        this._navActions.push({ action, handlerId });
+      }
+    }
+  }
+
+  _unregisterNav() {
+    for (const { action, handlerId } of this._navActions) {
+      global.display.disconnect(handlerId);
+      global.display.ungrab_accelerator(action);
+    }
+    this._navActions = [];
+    if (this._conflicts) this._conflicts.restore();
   }
 
   // --- Window helpers ---
