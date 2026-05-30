@@ -14,7 +14,7 @@ const DEFAULT_POSITIONS = [
   {
     name: 'Columns',
     cols: 16, rows: 1, edgeMargin: 0, cellGap: 0,
-    dragModifier: 'ctrl', edgeSnapEnabled: true,
+    dragModifier: 'ctrl', edgeSnapEnabled: true, navPrefix: '<Super>',
     shortcuts: [
       { shortcut: '<Alt><Super>1', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } }, { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } }] },
       { shortcut: '<Alt><Super>2', positions: [{ anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 8, row: 1 } }] },
@@ -30,7 +30,7 @@ const DEFAULT_POSITIONS = [
   {
     name: 'Floating Grid',
     cols: 8, rows: 4, edgeMargin: 0, cellGap: 0,
-    dragModifier: 'alt', edgeSnapEnabled: false,
+    dragModifier: 'alt', edgeSnapEnabled: false, navPrefix: '<Alt><Super>',
     shortcuts: [
       { shortcut: '<Shift><Alt><Super>1', positions: [{ anchor: { col: 1, row: 3 }, target: { col: 2, row: 4 } }] },
       { shortcut: '<Shift><Alt><Super>2', positions: [{ anchor: { col: 4, row: 3 }, target: { col: 5, row: 4 } }] },
