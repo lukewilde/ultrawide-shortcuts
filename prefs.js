@@ -769,6 +769,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     ));
 
     group.add(this._makeDragModifierRow(position, positionIndex));
+    group.add(this._makeNavPrefixRow(position, positionIndex));
 
     const edgeSnapRow = new Adw.SwitchRow({
       title: 'Include in edge snapping',
@@ -827,6 +828,33 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     row.connect('notify::selected', () => {
       const idx = row.get_selected();
       this._updatePosition(positionIndex, 'dragModifier', modifiers[idx]);
+    });
+
+    return row;
+  }
+
+  _makeNavPrefixRow(position, positionIndex) {
+    const prefixes = ['', '<Super>', '<Alt><Super>', '<Ctrl><Super>', '<Shift><Super>'];
+    const labels = ['None (navigation disabled)', 'Super', 'Alt+Super', 'Ctrl+Super', 'Shift+Super'];
+
+    const model = new Gtk.StringList();
+    labels.forEach(l => model.append(l));
+
+    const row = new Adw.ComboRow({
+      title: 'Directional Navigation',
+      subtitle: 'Prefix + arrow keys move the focused window between this grid’s positions ' +
+        '(Left/Right = nearest split, Up/Down = wider/narrower). ' +
+        'Super takes over GNOME tiling/maximize shortcuts while the extension is enabled.',
+      model,
+    });
+
+    const current = position.navPrefix || '';
+    let initialIdx = prefixes.indexOf(current);
+    if (initialIdx < 0) initialIdx = 0;
+    row.set_selected(initialIdx);
+
+    row.connect('notify::selected', () => {
+      this._updatePosition(positionIndex, 'navPrefix', prefixes[row.get_selected()]);
     });
 
     return row;
