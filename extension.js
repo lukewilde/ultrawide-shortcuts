@@ -458,7 +458,12 @@ export default class UltrawideShortcutsExtension extends Extension {
     const icon = app?.get_icon?.() ?? new Gio.ThemedIcon({ name: 'system-run-symbolic' });
     const displayName = app?.get_name?.() ?? wmClass;
     const label = `Press again to launch ${displayName}`;
-    Main.osdWindowManager.show(-1, icon, label, null, null);
+    // OSD API changed in GNOME 48: show(monitorIndex, icon, label, level)
+    // became show(icon, label, levels), with showAll() for all monitors.
+    if (Main.osdWindowManager.showAll)
+      Main.osdWindowManager.showAll(icon, label, null, null);
+    else
+      Main.osdWindowManager.show(-1, icon, label, null, null);
   }
 
   list_windows() {
