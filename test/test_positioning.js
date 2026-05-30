@@ -145,6 +145,25 @@ assertEq(pickNeighbour(winOffLeft, [offLeft, offRight], 'right'), 1, 'offset mon
 // Unknown direction returns -1
 assertEq(pickNeighbour(winCenter, cands, 'sideways'), -1, 'unknown direction is -1');
 
+// --- Left/right symmetry: on a center tie, prefer the narrower split ---
+// Window centered (cx 960, width 960). On each side two candidates share the
+// same center but differ in width — one narrower, one wider. Left and right
+// must both pick the narrower one, regardless of config order, so the two
+// directions behave as mirror images.
+const symWin = { x: 480, width: 960, ...H }; // cx 960
+const leftNarrow = { x: 480, width: 480, ...H };  // cx 720, narrower
+const leftWide = { x: 0, width: 1440, ...H };     // cx 720, wider
+const rightWide = { x: 480, width: 1440, ...H };  // cx 1200, wider (lower index than rightNarrow)
+const rightNarrow = { x: 960, width: 480, ...H }; // cx 1200, narrower
+const symCands = [leftNarrow, leftWide, rightWide, rightNarrow];
+assertEq(pickNeighbour(symWin, symCands, 'left'), 0, 'left center-tie prefers narrower');
+assertEq(pickNeighbour(symWin, symCands, 'right'), 3, 'right center-tie prefers narrower (not lower-index wider)');
+assert(
+  symCands[pickNeighbour(symWin, symCands, 'left')].width ===
+  symCands[pickNeighbour(symWin, symCands, 'right')].width,
+  'left and right pick equal-width (symmetric) splits'
+);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {
   imports.system.exit(1);

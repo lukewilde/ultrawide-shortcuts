@@ -51,23 +51,29 @@ export function pickNeighbour(windowRect, candidates, direction) {
     const dWidth = c.width - windowRect.width;
     const dHeight = c.height - windowRect.height;
 
+    // `tie` is an ordered list compared lexicographically (each entry smaller
+    // is better). It must be direction-symmetric: a plain |Δwidth| would score
+    // a narrower-by-N and a wider-by-N candidate identically, leaving the pick
+    // to fall through to config order — which differs left vs right and breaks
+    // mirror symmetry. So left/right tie-break on absolute candidate width
+    // (narrower wins) instead.
     let pass, primary, tie;
     if (direction === 'left') {
       pass = ccx < wcx - EPS;
       primary = Math.abs(dCenterX);
-      tie = Math.hypot(dWidth, dCenterY, dHeight);
+      tie = [c.width, Math.abs(dCenterY), Math.abs(dHeight)];
     } else if (direction === 'right') {
       pass = ccx > wcx + EPS;
       primary = Math.abs(dCenterX);
-      tie = Math.hypot(dWidth, dCenterY, dHeight);
+      tie = [c.width, Math.abs(dCenterY), Math.abs(dHeight)];
     } else if (direction === 'wider') {
       pass = c.width > windowRect.width + EPS;
       primary = Math.abs(dWidth);
-      tie = Math.hypot(dCenterX, dCenterY, dHeight);
+      tie = [Math.abs(dCenterX), Math.abs(dCenterY), Math.abs(dHeight)];
     } else if (direction === 'narrower') {
       pass = c.width < windowRect.width - EPS;
       primary = Math.abs(dWidth);
-      tie = Math.hypot(dCenterX, dCenterY, dHeight);
+      tie = [Math.abs(dCenterX), Math.abs(dCenterY), Math.abs(dHeight)];
     } else {
       return -1;
     }
@@ -76,10 +82,15 @@ export function pickNeighbour(windowRect, candidates, direction) {
 
   if (scored.length === 0) return -1;
 
-  // Lexicographic minimum: smallest primary key, then smallest tie-break.
-  // Group near-equal primaries (within EPS) so size variants tie-break by position.
+  // Lexicographic minimum: smallest primary key, then smallest tie-break list.
+  // Group near-equal primaries (within EPS) so size variants tie-break together.
   const minPrimary = Math.min(...scored.map(s => s.primary));
   const contenders = scored.filter(s => s.primary <= minPrimary + EPS);
-  contenders.sort((a, b) => (a.tie - b.tie) || (a.i - b.i));
+  contenders.sort((a, b) => {
+    for (let k = 0; k < a.tie.length; k++) {
+      if (a.tie[k] !== b.tie[k]) return a.tie[k] - b.tie[k];
+    }
+    return a.i - b.i;
+  });
   return contenders[0].i;
 }
