@@ -1,5 +1,5 @@
 // Run with: gjs -m test/test_positioning.js
-import { gridToPixels } from '../positioning.js';
+import { gridToPixels, pickNeighbour } from '../positioning.js';
 
 let passed = 0;
 let failed = 0;
@@ -99,6 +99,51 @@ assertRect(
   { x: 0, y: 0, width: 480, height: 1080 },
   'cellGap=0 matches no-gap'
 );
+
+// --- pickNeighbour tests ---
+
+function assertEq(actual, expected, msg) {
+  assert(actual === expected, `${msg}: expected ${expected}, got ${actual}`);
+}
+
+// 16-col @1920 candidates as pixel rects (1-row grid, constant y/height)
+const H = { y: 0, height: 1080 };
+const leftQ = { x: 0, width: 480, ...H };     // centerX 240
+const centerH = { x: 480, width: 960, ...H };  // centerX 960
+const rightQ = { x: 1440, width: 480, ...H };  // centerX 1680
+const sameCtr = { x: 240, width: 1440, ...H }; // centerX 960 (same center as centerH, wider)
+const cands = [leftQ, centerH, rightQ, sameCtr];
+
+// Window sitting on centerH
+const winCenter = { x: 480, width: 960, ...H };
+assertEq(pickNeighbour(winCenter, cands, 'left'), 0, 'left picks leftQ');
+assertEq(pickNeighbour(winCenter, cands, 'right'), 2, 'right picks rightQ');
+// same-center variant (index 3) excluded from left/right
+assert(pickNeighbour(winCenter, cands, 'left') !== 3, 'left excludes same-center variant');
+assert(pickNeighbour(winCenter, cands, 'right') !== 3, 'right excludes same-center variant');
+
+// Wider/narrower: window on leftQ (width 480)
+const winLeft = { x: 0, width: 480, ...H };
+assertEq(pickNeighbour(winLeft, cands, 'wider'), 1, 'wider picks nearest-width (centerH over sameCtr)');
+assertEq(pickNeighbour(winLeft, cands, 'narrower'), -1, 'narrower at narrowest extreme is -1');
+
+// Left extreme no-op: window on leftQ has nothing further left
+assertEq(pickNeighbour(winLeft, cands, 'left'), -1, 'left at leftmost extreme is -1');
+
+// Wider tie-break by position: equal-width candidates, pick closer center
+const winNarrow = { x: 720, width: 480, ...H }; // centerX 960
+const wideFar = { x: 0, width: 960, ...H };      // centerX 480, dWidth 480
+const wideNear = { x: 420, width: 960, ...H };   // centerX 900, dWidth 480 (closer center)
+assertEq(pickNeighbour(winNarrow, [wideFar, wideNear], 'wider'), 1, 'wider tie-break picks nearer center');
+
+// Monitor offset: work area origin x=1920
+const offLeft = { x: 1920, width: 1280, y: 0, height: 1440 };  // centerX 2560
+const offRight = { x: 3200, width: 1280, y: 0, height: 1440 }; // centerX 3840
+const winOffLeft = { x: 1920, width: 1280, y: 0, height: 1440 };
+assertEq(pickNeighbour(winOffLeft, [offLeft, offRight], 'right'), 1, 'offset monitor: right picks the right rect');
+
+// Unknown direction returns -1
+assertEq(pickNeighbour(winCenter, cands, 'sideways'), -1, 'unknown direction is -1');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {
