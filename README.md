@@ -1,6 +1,5 @@
 # Ultrawide Shortcuts
-
-A GNOME Shell extension that binds keyboard shortcuts to applications. Launch apps with a single keypress, focus them if already running, and snap windows into grid positions.
+A GNOME Shell extension designed for efficient window management and application launching. Instantly spawn or focus applications with shortcuts, cycle through multi-window instances, and snap windows into custom grid layouts.
 
 ## Main Features
 
