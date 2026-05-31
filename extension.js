@@ -4,7 +4,8 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels } from './positioning.js';
+import { gridToPixels, pickNeighbour } from './positioning.js';
+import { KeybindingConflictManager } from './keybinding-conflicts.js';
 import { DragSnapManager } from './drag-snap.js';
 import { EdgeSnapManager } from './edge-snap.js';
 
@@ -14,7 +15,7 @@ const DEFAULT_POSITIONS = [
   {
     name: 'Columns',
     cols: 16, rows: 1, edgeMargin: 0, cellGap: 0,
-    dragModifier: 'ctrl', edgeSnapEnabled: true,
+    dragModifier: 'ctrl', edgeSnapEnabled: true, navPrefix: '<Super>',
     shortcuts: [
       { shortcut: '<Alt><Super>1', positions: [{ anchor: { col: 1, row: 1 }, target: { col: 4, row: 1 } }, { anchor: { col: 1, row: 1 }, target: { col: 3, row: 1 } }] },
       { shortcut: '<Alt><Super>2', positions: [{ anchor: { col: 4, row: 1 }, target: { col: 8, row: 1 } }, { anchor: { col: 5, row: 1 }, target: { col: 8, row: 1 } }] },
@@ -30,7 +31,7 @@ const DEFAULT_POSITIONS = [
   {
     name: 'Floating Grid',
     cols: 8, rows: 4, edgeMargin: 0, cellGap: 0,
-    dragModifier: 'alt', edgeSnapEnabled: false,
+    dragModifier: 'alt', edgeSnapEnabled: false, navPrefix: '<Alt><Super>',
     shortcuts: [
       { shortcut: '<Shift><Alt><Super>1', positions: [{ anchor: { col: 1, row: 3 }, target: { col: 2, row: 4 } }] },
       { shortcut: '<Shift><Alt><Super>2', positions: [{ anchor: { col: 4, row: 3 }, target: { col: 5, row: 4 } }] },
@@ -50,12 +51,17 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._settings = this.getSettings();
     this._actions = [];
     this._positionActions = [];
+    this._navActions = [];
+    this._conflicts = new KeybindingConflictManager(this._settings);
     this._launching = false;
     this._launchingTimerId = null;
     this._lastPreset = null; // { key, windowId, index }
     this._presetTimerId = null;
     this._focusHistory = []; // stableSequence[], most-recently-focused first
     this._cycleSnapshot = null; // { wmClass, order: stableSequence[] } — stable order for active cycle
+    this._pendingLaunch = null; // { key, timeoutId } — set after first press, cleared on confirm/timeout
+    this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
+    this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
     this._focusChangedId = global.display.connect(
       'notify::focus-window', this._onFocusChanged.bind(this));
 
@@ -64,6 +70,8 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._setupDbus();
     this._registerBindings();
     this._registerPositions();
+    this._conflicts.healStaleBackup();
+    this._registerNav();
 
     this._settingsChangedId = this._settings.connect('changed::bindings', () => {
       this._unregisterBindings();
@@ -72,8 +80,20 @@ export default class UltrawideShortcutsExtension extends Extension {
 
     this._positionsChangedId = this._settings.connect('changed::positions', () => {
       this._unregisterPositions();
+      this._unregisterNav();
       this._registerPositions();
+      this._registerNav();
     });
+
+    this._doublePressChangedId = this._settings.connect(
+      'changed::require-double-press-to-launch', () => {
+        this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
+        if (!this._requireDoublePress) this._clearPendingLaunch();
+      });
+    this._doublePressTimeoutChangedId = this._settings.connect(
+      'changed::double-press-timeout-ms', () => {
+        this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
+      });
 
     this._dragSnap = new DragSnapManager(this, this._settings);
     this._dragSnap.enable();
@@ -98,9 +118,19 @@ export default class UltrawideShortcutsExtension extends Extension {
       this._settings.disconnect(this._positionsChangedId);
       this._positionsChangedId = null;
     }
+    if (this._doublePressChangedId) {
+      this._settings.disconnect(this._doublePressChangedId);
+      this._doublePressChangedId = null;
+    }
+    if (this._doublePressTimeoutChangedId) {
+      this._settings.disconnect(this._doublePressTimeoutChangedId);
+      this._doublePressTimeoutChangedId = null;
+    }
+    this._clearPendingLaunch();
 
     this._unregisterBindings();
     this._unregisterPositions();
+    this._unregisterNav();
 
     this._dbus.flush();
     this._dbus.unexport();
@@ -114,6 +144,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     }
 
     this._dbus = null;
+    this._conflicts = null;
     this._settings = null;
     this._lastPreset = null;
     if (this._focusChangedId) {
@@ -166,7 +197,8 @@ export default class UltrawideShortcutsExtension extends Extension {
           if (activatedAction === action) {
             this.magic_key_pressed(
               binding.wmClass,
-              binding.command
+              binding.command,
+              binding.shortcut
             );
           }
         }
@@ -259,20 +291,26 @@ export default class UltrawideShortcutsExtension extends Extension {
       target: { col: pos.target.col - 1, row: pos.target.row - 1 },
     };
 
+    this._applySelectionToFocused(ward, focused, selection);
+  }
+
+  _workAreaFor(ward, focused) {
     const monitorIdx = focused.get_monitor();
     const workspace = global.workspace_manager.get_active_workspace();
     const wa = workspace.get_work_area_for_monitor(monitorIdx);
-
     // Apply edgeMargin by shrinking the work area
-    const workArea = {
+    return {
       x: wa.x + ward.edgeMargin,
       y: wa.y + ward.edgeMargin,
       width: wa.width - 2 * ward.edgeMargin,
       height: wa.height - 2 * ward.edgeMargin,
     };
+  }
 
+  // selection is already 0-indexed.
+  _applySelectionToFocused(ward, focused, selection) {
+    const workArea = this._workAreaFor(ward, focused);
     const rect = gridToPixels(selection, { cols: ward.cols, rows: ward.rows }, workArea, ward.cellGap);
-
     focused.unmaximize();
     focused.move_resize_frame(
       false,
@@ -281,6 +319,87 @@ export default class UltrawideShortcutsExtension extends Extension {
       Math.round(rect.width),
       Math.round(rect.height)
     );
+  }
+
+  // --- Directional navigation (move focused window between ward positions) ---
+
+  // Flatten every position (including cycle variants) into pixel candidates.
+  _buildCandidates(ward, focused) {
+    const workArea = this._workAreaFor(ward, focused);
+    const gridSize = { cols: ward.cols, rows: ward.rows };
+    const candidates = [];
+    for (const sc of ward.shortcuts) {
+      for (const pos of sc.positions) {
+        if (!pos?.anchor || !pos?.target) continue;
+        const selection = {
+          anchor: { col: pos.anchor.col - 1, row: pos.anchor.row - 1 },
+          target: { col: pos.target.col - 1, row: pos.target.row - 1 },
+        };
+        const rect = gridToPixels(selection, gridSize, workArea, ward.cellGap);
+        candidates.push({ rect, selection });
+      }
+    }
+    return candidates;
+  }
+
+  _navigate(ward, direction) {
+    const focused = global.display.focus_window;
+    if (!focused) return;
+    const candidates = this._buildCandidates(ward, focused);
+    if (!candidates.length) return;
+    const fr = focused.get_frame_rect();
+    const windowRect = { x: fr.x, y: fr.y, width: fr.width, height: fr.height };
+    const idx = pickNeighbour(windowRect, candidates.map(c => c.rect), direction);
+    if (idx < 0) return;
+    this._applySelectionToFocused(ward, focused, candidates[idx].selection);
+  }
+
+  _navAccels() {
+    const accels = [];
+    for (const ward of this._getPositions()) {
+      if (!ward.navPrefix) continue;
+      for (const key of ['Left', 'Right', 'Up', 'Down'])
+        accels.push(`${ward.navPrefix}${key}`);
+    }
+    return accels;
+  }
+
+  _registerNav() {
+    // Take over colliding GNOME shortcuts before grabbing ours.
+    this._conflicts.takeOver(this._navAccels());
+
+    const dirs = [
+      ['Left', 'left'], ['Right', 'right'],
+      ['Up', 'wider'], ['Down', 'narrower'],
+    ];
+    for (const ward of this._getPositions()) {
+      if (!ward.navPrefix) continue;
+      for (const [key, direction] of dirs) {
+        const accel = `${ward.navPrefix}${key}`;
+        const action = global.display.grab_accelerator(accel, 0);
+        if (action === Meta.KeyBindingAction.NONE) continue;
+
+        const handlerId = global.display.connect(
+          'accelerator-activated',
+          (_display, activatedAction, _deviceId, _timestamp) => {
+            if (activatedAction === action) this._navigate(ward, direction);
+          }
+        );
+
+        const name = Meta.external_binding_name_for_action(action);
+        Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+        this._navActions.push({ action, handlerId });
+      }
+    }
+  }
+
+  _unregisterNav() {
+    for (const { action, handlerId } of this._navActions) {
+      global.display.disconnect(handlerId);
+      global.display.ungrab_accelerator(action);
+    }
+    this._navActions = [];
+    if (this._conflicts) this._conflicts.restore();
   }
 
   // --- Window helpers ---
@@ -359,25 +478,45 @@ export default class UltrawideShortcutsExtension extends Extension {
     return sorted;
   }
 
-  magic_key_pressed(wmClass, command) {
+  magic_key_pressed(wmClass, command, shortcut) {
     const current = this._getActiveWindow();
     const matches = this._findWindows(wmClass);
 
     if (matches.length === 0) {
       // No matching window — launch the application
-      if (!this._launching && command) {
-        this._launching = true;
-        this._launchingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-          this._launching = false;
-          this._launchingTimerId = null;
-          return GLib.SOURCE_REMOVE;
-        });
-        try {
-          GLib.spawn_command_line_async(command);
-        } catch (e) {
-          console.error(`ultrawide-shortcuts: failed to launch '${command}': ${e.message}`);
-          Main.notify('Ultrawide Shortcuts', `Failed to launch: ${command}\n${e.message}`);
+      if (this._launching || !command) return;
+
+      // Only gate accelerator-driven presses (shortcut provided). D-Bus
+      // callers bypass the double-press requirement.
+      if (this._requireDoublePress && shortcut) {
+        if (this._pendingLaunch && this._pendingLaunch.key === shortcut) {
+          this._clearPendingLaunch();
+          // fall through to launch
+        } else {
+          this._clearPendingLaunch();
+          this._showLaunchOsd(wmClass);
+          this._pendingLaunch = {
+            key: shortcut,
+            timeoutId: GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._doublePressTimeoutMs, () => {
+              this._pendingLaunch = null;
+              return GLib.SOURCE_REMOVE;
+            }),
+          };
+          return;
         }
+      }
+
+      this._launching = true;
+      this._launchingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+        this._launching = false;
+        this._launchingTimerId = null;
+        return GLib.SOURCE_REMOVE;
+      });
+      try {
+        GLib.spawn_command_line_async(command);
+      } catch (e) {
+        console.error(`ultrawide-shortcuts: failed to launch '${command}': ${e.message}`);
+        Main.notify('Ultrawide Shortcuts', `Failed to launch: ${command}\n${e.message}`);
       }
     } else if (!current || !matches.some(w => w.metaWindow === current.metaWindow)) {
       // Matching window exists but isn't focused — activate first match
@@ -389,6 +528,38 @@ export default class UltrawideShortcutsExtension extends Extension {
       Main.activateWindow(matches[nextIdx].metaWindow);
     }
     // Single match already focused — do nothing
+  }
+
+  _clearPendingLaunch() {
+    if (!this._pendingLaunch) return;
+    if (this._pendingLaunch.timeoutId)
+      GLib.source_remove(this._pendingLaunch.timeoutId);
+    this._pendingLaunch = null;
+  }
+
+  _showLaunchOsd(wmClass) {
+    const appSystem = Shell.AppSystem.get_default();
+    const lc = wmClass.toLowerCase();
+    let app = appSystem.lookup_app(`${lc}.desktop`);
+    if (!app) {
+      // Fallback: scan installed DesktopAppInfo entries for a matching id or WM class
+      const installed = appSystem.get_installed?.() || [];
+      app = installed.find(info => {
+        const id = (info.get_id?.() || '').toLowerCase();
+        const wm = (info.get_startup_wm_class?.() || '').toLowerCase();
+        return id.includes(lc) || (wm && wm.includes(lc));
+      });
+    }
+
+    const icon = app?.get_icon?.() ?? new Gio.ThemedIcon({ name: 'system-run-symbolic' });
+    const displayName = app?.get_name?.() ?? wmClass;
+    const label = `Press again to launch ${displayName}`;
+    // OSD API changed in GNOME 48: show(monitorIndex, icon, label, level)
+    // became show(icon, label, levels), with showAll() for all monitors.
+    if (Main.osdWindowManager.showAll)
+      Main.osdWindowManager.showAll(icon, label, null, null);
+    else
+      Main.osdWindowManager.show(-1, icon, label, null, null);
   }
 
   list_windows() {

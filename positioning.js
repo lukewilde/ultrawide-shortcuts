@@ -25,3 +25,72 @@ export function gridToPixels(selection, gridSize, workArea, cellGap = 0) {
     height: (row2 - row1 + 1) * cellH + (row2 - row1) * cellGap,
   };
 }
+
+// Excludes candidates the window already sits on (within EPS px).
+const EPS = 2;
+
+/**
+ * Pick the neighbouring candidate rectangle in a given direction.
+ * Pure function — no gi:// imports.
+ * @param {{x: number, y: number, width: number, height: number}} windowRect - focused window frame, pixels
+ * @param {Array<{x: number, y: number, width: number, height: number}>} candidates - candidate rects, pixels
+ * @param {'left'|'right'|'wider'|'narrower'} direction
+ * @returns {number} index of chosen candidate, or -1 if none qualifies
+ */
+export function pickNeighbour(windowRect, candidates, direction) {
+  const wcx = windowRect.x + windowRect.width / 2;
+  const wcy = windowRect.y + windowRect.height / 2;
+
+  const scored = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    const ccx = c.x + c.width / 2;
+    const ccy = c.y + c.height / 2;
+    const dCenterX = ccx - wcx;
+    const dCenterY = ccy - wcy;
+    const dWidth = c.width - windowRect.width;
+    const dHeight = c.height - windowRect.height;
+
+    // `tie` is an ordered list compared lexicographically (each entry smaller
+    // is better). It must be direction-symmetric: a plain |Δwidth| would score
+    // a narrower-by-N and a wider-by-N candidate identically, leaving the pick
+    // to fall through to config order — which differs left vs right and breaks
+    // mirror symmetry. So left/right tie-break on absolute candidate width
+    // (narrower wins) instead.
+    let pass, primary, tie;
+    if (direction === 'left') {
+      pass = ccx < wcx - EPS;
+      primary = Math.abs(dCenterX);
+      tie = [c.width, Math.abs(dCenterY), Math.abs(dHeight)];
+    } else if (direction === 'right') {
+      pass = ccx > wcx + EPS;
+      primary = Math.abs(dCenterX);
+      tie = [c.width, Math.abs(dCenterY), Math.abs(dHeight)];
+    } else if (direction === 'wider') {
+      pass = c.width > windowRect.width + EPS;
+      primary = Math.abs(dWidth);
+      tie = [Math.abs(dCenterX), Math.abs(dCenterY), Math.abs(dHeight)];
+    } else if (direction === 'narrower') {
+      pass = c.width < windowRect.width - EPS;
+      primary = Math.abs(dWidth);
+      tie = [Math.abs(dCenterX), Math.abs(dCenterY), Math.abs(dHeight)];
+    } else {
+      return -1;
+    }
+    if (pass) scored.push({ i, primary, tie });
+  }
+
+  if (scored.length === 0) return -1;
+
+  // Lexicographic minimum: smallest primary key, then smallest tie-break list.
+  // Group near-equal primaries (within EPS) so size variants tie-break together.
+  const minPrimary = Math.min(...scored.map(s => s.primary));
+  const contenders = scored.filter(s => s.primary <= minPrimary + EPS);
+  contenders.sort((a, b) => {
+    for (let k = 0; k < a.tie.length; k++) {
+      if (a.tie[k] !== b.tie[k]) return a.tie[k] - b.tie[k];
+    }
+    return a.i - b.i;
+  });
+  return contenders[0].i;
+}

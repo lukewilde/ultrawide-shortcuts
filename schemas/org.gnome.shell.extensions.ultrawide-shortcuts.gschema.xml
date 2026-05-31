@@ -10,7 +10,7 @@
     </key>
 
     <key type="s" name="positions">
-      <default><![CDATA['[{"name":"Columns","cols":16,"rows":1,"edgeMargin":0,"cellGap":0,"dragModifier":"ctrl","edgeSnapEnabled":true,"shortcuts":[{"shortcut":"<Alt><Super>1","positions":[{"anchor":{"col":1,"row":1},"target":{"col":4,"row":1}},{"anchor":{"col":1,"row":1},"target":{"col":3,"row":1}}]},{"shortcut":"<Alt><Super>2","positions":[{"anchor":{"col":4,"row":1},"target":{"col":8,"row":1}},{"anchor":{"col":5,"row":1},"target":{"col":8,"row":1}}]},{"shortcut":"<Alt><Super>3","positions":[{"anchor":{"col":13,"row":1},"target":{"col":16,"row":1}},{"anchor":{"col":14,"row":1},"target":{"col":16,"row":1}}]},{"shortcut":"<Alt><Super>4","positions":[{"anchor":{"col":1,"row":1},"target":{"col":8,"row":1}},{"anchor":{"col":1,"row":1},"target":{"col":12,"row":1}}]},{"shortcut":"<Alt><Super>5","positions":[{"anchor":{"col":5,"row":1},"target":{"col":12,"row":1}},{"anchor":{"col":4,"row":1},"target":{"col":13,"row":1}},{"anchor":{"col":3,"row":1},"target":{"col":14,"row":1}}]},{"shortcut":"<Alt><Super>6","positions":[{"anchor":{"col":9,"row":1},"target":{"col":16,"row":1}},{"anchor":{"col":5,"row":1},"target":{"col":16,"row":1}}]},{"shortcut":"<Alt><Super>7","positions":[{"anchor":{"col":1,"row":1},"target":{"col":3,"row":1}}]},{"shortcut":"<Alt><Super>8","positions":[{"anchor":{"col":9,"row":1},"target":{"col":13,"row":1}},{"anchor":{"col":9,"row":1},"target":{"col":12,"row":1}}]},{"shortcut":"<Alt><Super>9","positions":[{"anchor":{"col":14,"row":1},"target":{"col":16,"row":1}}]}]},{"name":"Floating Grid","cols":8,"rows":4,"edgeMargin":0,"cellGap":0,"dragModifier":"alt","edgeSnapEnabled":false,"shortcuts":[{"shortcut":"<Shift><Alt><Super>1","positions":[{"anchor":{"col":1,"row":3},"target":{"col":2,"row":4}}]},{"shortcut":"<Shift><Alt><Super>2","positions":[{"anchor":{"col":4,"row":3},"target":{"col":5,"row":4}}]},{"shortcut":"<Shift><Alt><Super>3","positions":[{"anchor":{"col":7,"row":3},"target":{"col":8,"row":4}}]},{"shortcut":"<Shift><Alt><Super>4","positions":[{"anchor":{"col":1,"row":2},"target":{"col":2,"row":3}}]},{"shortcut":"<Shift><Alt><Super>5","positions":[{"anchor":{"col":4,"row":2},"target":{"col":5,"row":3}}]},{"shortcut":"<Shift><Alt><Super>6","positions":[{"anchor":{"col":7,"row":2},"target":{"col":8,"row":3}}]},{"shortcut":"<Shift><Alt><Super>7","positions":[{"anchor":{"col":1,"row":1},"target":{"col":2,"row":2}}]},{"shortcut":"<Shift><Alt><Super>8","positions":[{"anchor":{"col":4,"row":1},"target":{"col":5,"row":2}}]},{"shortcut":"<Shift><Alt><Super>9","positions":[{"anchor":{"col":7,"row":1},"target":{"col":8,"row":2}}]}]}]']]></default>
+      <default><![CDATA['[{"name":"Columns","cols":16,"rows":1,"edgeMargin":0,"cellGap":0,"dragModifier":"ctrl","edgeSnapEnabled":true,"navPrefix":"<Super>","shortcuts":[{"shortcut":"<Alt><Super>1","positions":[{"anchor":{"col":1,"row":1},"target":{"col":4,"row":1}},{"anchor":{"col":1,"row":1},"target":{"col":3,"row":1}}]},{"shortcut":"<Alt><Super>2","positions":[{"anchor":{"col":4,"row":1},"target":{"col":8,"row":1}},{"anchor":{"col":5,"row":1},"target":{"col":8,"row":1}}]},{"shortcut":"<Alt><Super>3","positions":[{"anchor":{"col":13,"row":1},"target":{"col":16,"row":1}},{"anchor":{"col":14,"row":1},"target":{"col":16,"row":1}}]},{"shortcut":"<Alt><Super>4","positions":[{"anchor":{"col":1,"row":1},"target":{"col":8,"row":1}},{"anchor":{"col":1,"row":1},"target":{"col":12,"row":1}}]},{"shortcut":"<Alt><Super>5","positions":[{"anchor":{"col":5,"row":1},"target":{"col":12,"row":1}},{"anchor":{"col":4,"row":1},"target":{"col":13,"row":1}},{"anchor":{"col":3,"row":1},"target":{"col":14,"row":1}}]},{"shortcut":"<Alt><Super>6","positions":[{"anchor":{"col":9,"row":1},"target":{"col":16,"row":1}},{"anchor":{"col":5,"row":1},"target":{"col":16,"row":1}}]},{"shortcut":"<Alt><Super>7","positions":[{"anchor":{"col":1,"row":1},"target":{"col":3,"row":1}}]},{"shortcut":"<Alt><Super>8","positions":[{"anchor":{"col":9,"row":1},"target":{"col":13,"row":1}},{"anchor":{"col":9,"row":1},"target":{"col":12,"row":1}}]},{"shortcut":"<Alt><Super>9","positions":[{"anchor":{"col":14,"row":1},"target":{"col":16,"row":1}}]}]},{"name":"Floating Grid","cols":8,"rows":4,"edgeMargin":0,"cellGap":0,"dragModifier":"alt","edgeSnapEnabled":false,"navPrefix":"<Alt><Super>","shortcuts":[{"shortcut":"<Shift><Alt><Super>1","positions":[{"anchor":{"col":1,"row":3},"target":{"col":2,"row":4}}]},{"shortcut":"<Shift><Alt><Super>2","positions":[{"anchor":{"col":4,"row":3},"target":{"col":5,"row":4}}]},{"shortcut":"<Shift><Alt><Super>3","positions":[{"anchor":{"col":7,"row":3},"target":{"col":8,"row":4}}]},{"shortcut":"<Shift><Alt><Super>4","positions":[{"anchor":{"col":1,"row":2},"target":{"col":2,"row":3}}]},{"shortcut":"<Shift><Alt><Super>5","positions":[{"anchor":{"col":4,"row":2},"target":{"col":5,"row":3}}]},{"shortcut":"<Shift><Alt><Super>6","positions":[{"anchor":{"col":7,"row":2},"target":{"col":8,"row":3}}]},{"shortcut":"<Shift><Alt><Super>7","positions":[{"anchor":{"col":1,"row":1},"target":{"col":2,"row":2}}]},{"shortcut":"<Shift><Alt><Super>8","positions":[{"anchor":{"col":4,"row":1},"target":{"col":5,"row":2}}]},{"shortcut":"<Shift><Alt><Super>9","positions":[{"anchor":{"col":7,"row":1},"target":{"col":8,"row":2}}]}]}]']]></default>
       <summary>Position layout definitions</summary>
       <description>
         JSON array of position objects. Each position has: name (string), cols (int),
@@ -48,6 +48,25 @@
       <default>32</default>
       <range min="0" max="200"/>
       <summary>Edge snap trigger zone (px)</summary>
+    </key>
+
+    <key type="b" name="require-double-press-to-launch">
+      <default>true</default>
+      <summary>Require double-press to launch</summary>
+      <description>When enabled, an app shortcut must be pressed twice within the timeout to launch the app if it is not already running. Focus and cycle behavior is unaffected.</description>
+    </key>
+
+    <key type="i" name="double-press-timeout-ms">
+      <default>600</default>
+      <range min="150" max="2000"/>
+      <summary>Double-press timeout (ms)</summary>
+      <description>Maximum time between the two presses for a launch to be confirmed.</description>
+    </key>
+
+    <key type="s" name="nav-keybinding-backup">
+      <default><![CDATA['[]']]></default>
+      <summary>Backup of GNOME keybindings taken over by directional navigation</summary>
+      <description>Internal. JSON array of {schema, key, original[]} recorded when nav prefixes take over GNOME built-in window shortcuts, so they can be restored on disable or after an unclean shutdown.</description>
     </key>
 
   </schema>
