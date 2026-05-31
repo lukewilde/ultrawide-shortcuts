@@ -62,10 +62,8 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._pendingLaunch = null; // { key, timeoutId } — set after first press, cleared on confirm/timeout
     this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
     this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
-    this._focusChangedId = global.display.connect(
-      'notify::focus-window', this._onFocusChanged.bind(this));
-
-    this._positionsChangedId = null;
+    global.display.connectObject(
+      'notify::focus-window', this._onFocusChanged.bind(this), this);
 
     this._setupDbus();
     this._registerBindings();
@@ -73,27 +71,25 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._conflicts.healStaleBackup();
     this._registerNav();
 
-    this._settingsChangedId = this._settings.connect('changed::bindings', () => {
-      this._unregisterBindings();
-      this._registerBindings();
-    });
-
-    this._positionsChangedId = this._settings.connect('changed::positions', () => {
-      this._unregisterPositions();
-      this._unregisterNav();
-      this._registerPositions();
-      this._registerNav();
-    });
-
-    this._doublePressChangedId = this._settings.connect(
+    this._settings.connectObject(
+      'changed::bindings', () => {
+        this._unregisterBindings();
+        this._registerBindings();
+      },
+      'changed::positions', () => {
+        this._unregisterPositions();
+        this._unregisterNav();
+        this._registerPositions();
+        this._registerNav();
+      },
       'changed::require-double-press-to-launch', () => {
         this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
         if (!this._requireDoublePress) this._clearPendingLaunch();
-      });
-    this._doublePressTimeoutChangedId = this._settings.connect(
+      },
       'changed::double-press-timeout-ms', () => {
         this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
-      });
+      },
+      this);
 
     this._dragSnap = new DragSnapManager(this, this._settings);
     this._dragSnap.enable();
@@ -102,38 +98,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   }
 
   disable() {
-    if (this._edgeSnap) {
-      this._edgeSnap.disable();
-      this._edgeSnap = null;
-    }
-    if (this._dragSnap) {
-      this._dragSnap.disable();
-      this._dragSnap = null;
-    }
-    if (this._settingsChangedId) {
-      this._settings.disconnect(this._settingsChangedId);
-      this._settingsChangedId = null;
-    }
-    if (this._positionsChangedId) {
-      this._settings.disconnect(this._positionsChangedId);
-      this._positionsChangedId = null;
-    }
-    if (this._doublePressChangedId) {
-      this._settings.disconnect(this._doublePressChangedId);
-      this._doublePressChangedId = null;
-    }
-    if (this._doublePressTimeoutChangedId) {
-      this._settings.disconnect(this._doublePressTimeoutChangedId);
-      this._doublePressTimeoutChangedId = null;
-    }
-    this._clearPendingLaunch();
-
-    this._unregisterBindings();
-    this._unregisterPositions();
-    this._unregisterNav();
-
-    this._dbus.flush();
-    this._dbus.unexport();
+    // Remove main-loop sources first thing (EGO review guideline).
     if (this._presetTimerId) {
       GLib.source_remove(this._presetTimerId);
       this._presetTimerId = null;
@@ -142,15 +107,31 @@ export default class UltrawideShortcutsExtension extends Extension {
       GLib.source_remove(this._launchingTimerId);
       this._launchingTimerId = null;
     }
+    this._clearPendingLaunch();
+
+    if (this._edgeSnap) {
+      this._edgeSnap.disable();
+      this._edgeSnap = null;
+    }
+    if (this._dragSnap) {
+      this._dragSnap.disable();
+      this._dragSnap = null;
+    }
+
+    this._settings.disconnectObject(this);
+    global.display.disconnectObject(this);
+
+    this._unregisterBindings();
+    this._unregisterPositions();
+    this._unregisterNav();
+
+    this._dbus.flush();
+    this._dbus.unexport();
 
     this._dbus = null;
     this._conflicts = null;
     this._settings = null;
     this._lastPreset = null;
-    if (this._focusChangedId) {
-      global.display.disconnect(this._focusChangedId);
-      this._focusChangedId = null;
-    }
     this._focusHistory = null;
     this._cycleSnapshot = null;
   }
@@ -507,6 +488,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       }
 
       this._launching = true;
+      if (this._launchingTimerId) GLib.source_remove(this._launchingTimerId);
       this._launchingTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
         this._launching = false;
         this._launchingTimerId = null;
