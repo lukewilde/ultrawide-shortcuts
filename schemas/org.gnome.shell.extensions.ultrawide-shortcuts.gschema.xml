@@ -45,7 +45,7 @@
     </key>
 
     <key type="i" name="edge-snap-threshold">
-      <default>32</default>
+      <default>16</default>
       <range min="0" max="200"/>
       <summary>Edge snap trigger zone (px)</summary>
     </key>
