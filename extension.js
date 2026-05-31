@@ -155,12 +155,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   // --- App focus/launch bindings (from GSettings) ---
 
   _getBindings() {
-    try {
-      return JSON.parse(this._settings.get_string('bindings'));
-    } catch (e) {
-      console.error(`ultrawide-shortcuts: failed to parse bindings: ${e.message}`);
-      return [];
-    }
+    return JSON.parse(this._settings.get_string('bindings'));
   }
 
   _registerBindings() {
@@ -203,13 +198,8 @@ export default class UltrawideShortcutsExtension extends Extension {
   // --- Positions (snap focused window to grid) ---
 
   _getPositions() {
-    try {
-      const parsed = JSON.parse(this._settings.get_string('positions'));
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_POSITIONS;
-    } catch (e) {
-      console.error(`ultrawide-shortcuts: failed to parse positions: ${e.message}`);
-      return DEFAULT_POSITIONS;
-    }
+    const parsed = JSON.parse(this._settings.get_string('positions'));
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_POSITIONS;
   }
 
   _registerPositions() {
