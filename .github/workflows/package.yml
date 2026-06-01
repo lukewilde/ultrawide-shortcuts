@@ -35,6 +35,11 @@ jobs:
             metadata.json \
             schemas/org.gnome.shell.extensions.ultrawide-shortcuts.gschema.xml
 
+      - name: Validate bundle (shexli)
+        run: |
+          python3 -m pip install --quiet shexli==0.2.1
+          shexli ultrawide-shortcuts@lukewilde.co.uk.zip
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
