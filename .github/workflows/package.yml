@@ -30,7 +30,9 @@ jobs:
       - name: Create ZIP
         run: |
           zip ultrawide-shortcuts@lukewilde.co.uk.zip \
-            extension.js positioning.js prefs.js metadata.json \
+            extension.js prefs.js \
+            positioning.js keybinding-conflicts.js drag-snap.js edge-snap.js \
+            metadata.json \
             schemas/org.gnome.shell.extensions.ultrawide-shortcuts.gschema.xml
 
       - name: Upload artifact
