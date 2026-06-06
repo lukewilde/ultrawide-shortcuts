@@ -552,7 +552,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     return `${position.cols}×${position.rows}  ·  edge ${position.edgeMargin}px  ·  gap ${position.cellGap}px`;
   }
 
-  _positionSummary(ward, positions) {
+  _positionSummary(grid, positions) {
     if (positions.length === 0) return 'No positions';
     return positions.map(pos => {
       const c1 = Math.min(pos.anchor.col, pos.target.col);
@@ -560,7 +560,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       const r1 = Math.min(pos.anchor.row, pos.target.row);
       const r2 = Math.max(pos.anchor.row, pos.target.row);
       const colPart = c1 === c2 ? `c${c1}` : `c${c1}–${c2}`;
-      if (ward.rows === 1) return colPart;
+      if (grid.rows === 1) return colPart;
       const rowPart = r1 === r2 ? `r${r1}` : `r${r1}–${r2}`;
       return `${colPart} ${rowPart}`;
     }).join(' · ');

@@ -27,7 +27,8 @@ glib-compile-schemas schemas/     # After schema changes
 Positions stored **1-indexed** in GSettings. `gridToPixels()` takes **0-indexed** — subtract 1 before calling.
 `DEFAULT_POSITIONS` in `extension.js` is the runtime fallback when `positions` key is empty/invalid.
 
-Position shape: `{name, cols, rows, edgeMargin, cellGap, shortcuts[{shortcut, positions[{anchor, target}]}]}`.
+Grid shape: `{name, cols, rows, edgeMargin, cellGap, dragModifier, edgeSnapEnabled, navPrefix, shortcuts[{shortcut, positions[{anchor, target}]}]}`.
+Call these objects `grid` in code (not `position` — that's the anchor/target pair; never `ward`, a retired term).
 Positions text format: `"col:row col:row, col:row col:row"` — comma = cycling positions.
 
 ## prefs.js Patterns

@@ -205,9 +205,9 @@ export default class UltrawideShortcutsExtension extends Extension {
   }
 
   _registerPositions() {
-    const wards = this._getPositions();
-    for (const ward of wards) {
-      for (const shortcutConfig of ward.shortcuts) {
+    const grids = this._getPositions();
+    for (const grid of grids) {
+      for (const shortcutConfig of grid.shortcuts) {
         if (!shortcutConfig.shortcut) continue;
         const action = global.display.grab_accelerator(shortcutConfig.shortcut, 0);
         if (action === Meta.KeyBindingAction.NONE) continue;
@@ -216,7 +216,7 @@ export default class UltrawideShortcutsExtension extends Extension {
           'accelerator-activated',
           (_display, activatedAction, _deviceId, _timestamp) => {
             if (activatedAction === action)
-              this._applyPositionShortcut(ward, shortcutConfig);
+              this._applyPositionShortcut(grid, shortcutConfig);
           }
         );
 
@@ -235,7 +235,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._positionActions = [];
   }
 
-  _applyPositionShortcut(ward, shortcutConfig) {
+  _applyPositionShortcut(grid, shortcutConfig) {
     const focused = global.display.focus_window;
     if (!focused || !shortcutConfig.positions.length) return;
 
@@ -264,26 +264,26 @@ export default class UltrawideShortcutsExtension extends Extension {
       target: { col: pos.target.col - 1, row: pos.target.row - 1 },
     };
 
-    this._applySelectionToFocused(ward, focused, selection);
+    this._applySelectionToFocused(grid, focused, selection);
   }
 
-  _workAreaFor(ward, focused) {
+  _workAreaFor(grid, focused) {
     const monitorIdx = focused.get_monitor();
     const workspace = global.workspace_manager.get_active_workspace();
     const wa = workspace.get_work_area_for_monitor(monitorIdx);
     // Apply edgeMargin by shrinking the work area
     return {
-      x: wa.x + ward.edgeMargin,
-      y: wa.y + ward.edgeMargin,
-      width: wa.width - 2 * ward.edgeMargin,
-      height: wa.height - 2 * ward.edgeMargin,
+      x: wa.x + grid.edgeMargin,
+      y: wa.y + grid.edgeMargin,
+      width: wa.width - 2 * grid.edgeMargin,
+      height: wa.height - 2 * grid.edgeMargin,
     };
   }
 
   // selection is already 0-indexed.
-  _applySelectionToFocused(ward, focused, selection) {
-    const workArea = this._workAreaFor(ward, focused);
-    const rect = gridToPixels(selection, { cols: ward.cols, rows: ward.rows }, workArea, ward.cellGap);
+  _applySelectionToFocused(grid, focused, selection) {
+    const workArea = this._workAreaFor(grid, focused);
+    const rect = gridToPixels(selection, { cols: grid.cols, rows: grid.rows }, workArea, grid.cellGap);
     focused.unmaximize();
     focused.move_resize_frame(
       false,
@@ -294,45 +294,45 @@ export default class UltrawideShortcutsExtension extends Extension {
     );
   }
 
-  // --- Directional navigation (move focused window between ward positions) ---
+  // --- Directional navigation (move focused window between grid positions) ---
 
   // Flatten every position (including cycle variants) into pixel candidates.
-  _buildCandidates(ward, focused) {
-    const workArea = this._workAreaFor(ward, focused);
-    const gridSize = { cols: ward.cols, rows: ward.rows };
+  _buildCandidates(grid, focused) {
+    const workArea = this._workAreaFor(grid, focused);
+    const gridSize = { cols: grid.cols, rows: grid.rows };
     const candidates = [];
-    for (const sc of ward.shortcuts) {
+    for (const sc of grid.shortcuts) {
       for (const pos of sc.positions) {
         if (!pos?.anchor || !pos?.target) continue;
         const selection = {
           anchor: { col: pos.anchor.col - 1, row: pos.anchor.row - 1 },
           target: { col: pos.target.col - 1, row: pos.target.row - 1 },
         };
-        const rect = gridToPixels(selection, gridSize, workArea, ward.cellGap);
+        const rect = gridToPixels(selection, gridSize, workArea, grid.cellGap);
         candidates.push({ rect, selection });
       }
     }
     return candidates;
   }
 
-  _navigate(ward, direction) {
+  _navigate(grid, direction) {
     const focused = global.display.focus_window;
     if (!focused) return;
-    const candidates = this._buildCandidates(ward, focused);
+    const candidates = this._buildCandidates(grid, focused);
     if (!candidates.length) return;
     const fr = focused.get_frame_rect();
     const windowRect = { x: fr.x, y: fr.y, width: fr.width, height: fr.height };
     const idx = pickNeighbour(windowRect, candidates.map(c => c.rect), direction);
     if (idx < 0) return;
-    this._applySelectionToFocused(ward, focused, candidates[idx].selection);
+    this._applySelectionToFocused(grid, focused, candidates[idx].selection);
   }
 
   _navAccels() {
     const accels = [];
-    for (const ward of this._getPositions()) {
-      if (!ward.navPrefix) continue;
+    for (const grid of this._getPositions()) {
+      if (!grid.navPrefix) continue;
       for (const key of ['Left', 'Right', 'Up', 'Down'])
-        accels.push(`${ward.navPrefix}${key}`);
+        accels.push(`${grid.navPrefix}${key}`);
     }
     return accels;
   }
@@ -346,10 +346,10 @@ export default class UltrawideShortcutsExtension extends Extension {
       ['Up', 'wider'], ['Down', 'narrower'],
     ];
     this._navPending = [];
-    for (const ward of this._getPositions()) {
-      if (!ward.navPrefix) continue;
+    for (const grid of this._getPositions()) {
+      if (!grid.navPrefix) continue;
       for (const [key, direction] of dirs)
-        this._navPending.push({ accel: `${ward.navPrefix}${key}`, ward, direction });
+        this._navPending.push({ accel: `${grid.navPrefix}${key}`, grid, direction });
     }
 
     // Mutter only drops the bindings takeOver() removed when the GSettings
@@ -363,14 +363,14 @@ export default class UltrawideShortcutsExtension extends Extension {
   }
 
   _grabPendingNav() {
-    this._navPending = this._navPending.filter(({ accel, ward, direction }) => {
+    this._navPending = this._navPending.filter(({ accel, grid, direction }) => {
       const action = global.display.grab_accelerator(accel, 0);
       if (action === Meta.KeyBindingAction.NONE) return true; // keep — retry
 
       const handlerId = global.display.connect(
         'accelerator-activated',
         (_display, activatedAction, _deviceId, _timestamp) => {
-          if (activatedAction === action) this._navigate(ward, direction);
+          if (activatedAction === action) this._navigate(grid, direction);
         }
       );
 
