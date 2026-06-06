@@ -33,6 +33,24 @@ export function normalizeAccel(accel) {
   return `${mods.join('+')}|${key}`;
 }
 
+/**
+ * Merge freshly recorded takeover records into an existing backup.
+ * Old records win: an original captured earlier must never be replaced by a
+ * later (possibly already-stripped) value, and records for keys we did not
+ * touch this run are kept so restore() can still return them. Pure.
+ * @param {Array<{schema: string, key: string, original: string[]}>} existing
+ * @param {Array<{schema: string, key: string, original: string[]}>} fresh
+ * @returns {Array<{schema: string, key: string, original: string[]}>}
+ */
+export function mergeBackupRecords(existing, fresh) {
+  const merged = new Map(existing.map(r => [`${r.schema}/${r.key}`, r]));
+  for (const r of fresh) {
+    const id = `${r.schema}/${r.key}`;
+    if (!merged.has(id)) merged.set(id, r);
+  }
+  return [...merged.values()];
+}
+
 export class KeybindingConflictManager {
   /** @param {Gio.Settings} extensionSettings - our settings (holds the backup key) */
   constructor(extensionSettings) {
@@ -40,15 +58,21 @@ export class KeybindingConflictManager {
     this._records = []; // [{ schema, key, original: string[] }]
   }
 
+  // Parse the persisted backup, tolerating an absent or corrupt value.
+  _readBackup() {
+    let records = [];
+    try {
+      records = JSON.parse(this._extSettings.get_string('nav-keybinding-backup'));
+    } catch {
+      records = [];
+    }
+    return Array.isArray(records) ? records : [];
+  }
+
   // Restore a backup left by an unclean shutdown, then clear it. Idempotent.
   healStaleBackup() {
-    let stale = [];
-    try {
-      stale = JSON.parse(this._extSettings.get_string('nav-keybinding-backup'));
-    } catch {
-      stale = [];
-    }
-    if (!Array.isArray(stale) || stale.length === 0) return;
+    const stale = this._readBackup();
+    if (stale.length === 0) return;
     for (const { schema, key, original } of stale) {
       try {
         new Gio.Settings({ schema_id: schema }).set_strv(key, original);
@@ -61,7 +85,12 @@ export class KeybindingConflictManager {
 
   // Remove any of `accels` from known GNOME keybindings, recording originals.
   takeOver(accels) {
-    this._records = [];
+    // Merge into any backup already on disk rather than overwriting it: if a
+    // key was stripped in an earlier run whose restore never happened, its
+    // original lives only in that backup and must survive this run.
+    const existing = this._readBackup();
+
+    const fresh = [];
     const wanted = new Set(accels.map(normalizeAccel));
     for (const { schema, keys } of KNOWN) {
       let settings;
@@ -74,11 +103,12 @@ export class KeybindingConflictManager {
         const current = settings.get_strv(key);
         const filtered = current.filter(a => !wanted.has(normalizeAccel(a)));
         if (filtered.length !== current.length) {
-          this._records.push({ schema, key, original: current });
+          fresh.push({ schema, key, original: current });
           settings.set_strv(key, filtered);
         }
       }
     }
+    this._records = mergeBackupRecords(existing, fresh);
     this._extSettings.set_string('nav-keybinding-backup', JSON.stringify(this._records));
   }
 

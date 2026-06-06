@@ -52,6 +52,8 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._actions = [];
     this._positionActions = [];
     this._navActions = [];
+    this._navPending = [];
+    this._navGrabId = null;
     this._conflicts = new KeybindingConflictManager(this._settings);
     this._launching = false;
     this._launchingTimerId = null;
@@ -343,28 +345,61 @@ export default class UltrawideShortcutsExtension extends Extension {
       ['Left', 'left'], ['Right', 'right'],
       ['Up', 'wider'], ['Down', 'narrower'],
     ];
+    this._navPending = [];
     for (const ward of this._getPositions()) {
       if (!ward.navPrefix) continue;
-      for (const [key, direction] of dirs) {
-        const accel = `${ward.navPrefix}${key}`;
-        const action = global.display.grab_accelerator(accel, 0);
-        if (action === Meta.KeyBindingAction.NONE) continue;
-
-        const handlerId = global.display.connect(
-          'accelerator-activated',
-          (_display, activatedAction, _deviceId, _timestamp) => {
-            if (activatedAction === action) this._navigate(ward, direction);
-          }
-        );
-
-        const name = Meta.external_binding_name_for_action(action);
-        Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
-        this._navActions.push({ action, handlerId });
-      }
+      for (const [key, direction] of dirs)
+        this._navPending.push({ accel: `${ward.navPrefix}${key}`, ward, direction });
     }
+
+    // Mutter only drops the bindings takeOver() removed when the GSettings
+    // change is dispatched on a later main-loop iteration. Grabbing in the
+    // same stack frame races that and fails — leaving the key stripped from
+    // mutter but grabbed by nobody (dead). Defer the first attempt, and retry
+    // briefly in case the settings notification is slow to arrive.
+    this._navGrabRetries = 5;
+    this._navGrabId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE,
+      () => this._grabPendingNav());
+  }
+
+  _grabPendingNav() {
+    this._navPending = this._navPending.filter(({ accel, ward, direction }) => {
+      const action = global.display.grab_accelerator(accel, 0);
+      if (action === Meta.KeyBindingAction.NONE) return true; // keep — retry
+
+      const handlerId = global.display.connect(
+        'accelerator-activated',
+        (_display, activatedAction, _deviceId, _timestamp) => {
+          if (activatedAction === action) this._navigate(ward, direction);
+        }
+      );
+
+      const name = Meta.external_binding_name_for_action(action);
+      Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+      this._navActions.push({ action, handlerId });
+      return false;
+    });
+
+    if (this._navPending.length === 0) {
+      this._navGrabId = null;
+    } else if (this._navGrabRetries-- > 0) {
+      this._navGrabId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100,
+        () => this._grabPendingNav());
+    } else {
+      console.error('ultrawide-shortcuts: failed to grab nav accelerators: ' +
+        this._navPending.map(p => p.accel).join(', '));
+      this._navPending = [];
+      this._navGrabId = null;
+    }
+    return GLib.SOURCE_REMOVE;
   }
 
   _unregisterNav() {
+    if (this._navGrabId) {
+      GLib.source_remove(this._navGrabId);
+      this._navGrabId = null;
+    }
+    this._navPending = [];
     for (const { action, handlerId } of this._navActions) {
       global.display.disconnect(handlerId);
       global.display.ungrab_accelerator(action);
