@@ -1,6 +1,5 @@
-// drag-snap.js — Snap windows into configured grid positions while dragging.
-// Hint overlay tracks the closest candidate; window moves freely during drag
-// and snaps on release.
+// drag-snap.js — Snap dragged windows into grid positions on release; a hint
+// overlay tracks the closest candidate during the drag.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -93,7 +92,6 @@ export class DragSnapManager {
     this._currentRect = null;
     this._lastRectKey = null;
 
-    // Cache style inputs once per drag so the per-frame path stays cheap.
     const accent = this._readAccentRgb();
     const opacity = this._settings.get_int('drag-hint-opacity');
     const border = this._settings.get_int('drag-hint-border-width');
@@ -104,8 +102,7 @@ export class DragSnapManager {
         : 'none',
     };
 
-    // Cache the parsed grids once per drag — the poll tick runs every 16 ms and
-    // a fresh JSON.parse there would re-parse the whole config at ~60 Hz.
+    // Parse grids once per drag — the tick must not JSON.parse at 60 Hz.
     this._cachedGrids = this._extension._getPositions();
 
     this._ensureOverlay();
@@ -115,8 +112,7 @@ export class DragSnapManager {
   _onGrabEnd(_display, window, _op) {
     this._stopPoll();
 
-    // Recheck modifier at release — guards against a stale _currentRect when
-    // the user lets go of the modifier and mouse button at the same instant.
+    // Recheck the modifier at release — it may drop in the same instant as the button.
     const [, , modMask] = global.get_pointer();
     const stillHeld = this._selectGrid(modMask & TRACKED_MOD_MASK) !== null;
 
@@ -190,9 +186,7 @@ export class DragSnapManager {
     if (this._overlay) this._overlay.hide();
   }
 
-  // Opt-in: snap activates only while a configured modifier is held. Exact
-  // mask match — Shift+Alt does not activate a Shift-only grid. 'none' means
-  // snap disabled for that grid.
+  // Exact mask match — Shift+Alt does not activate a Shift-only grid.
   _selectGrid(trackedMask) {
     if (trackedMask === 0) return null;
     const positions = this._cachedGrids || this._extension._getPositions();

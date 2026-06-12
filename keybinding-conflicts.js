@@ -1,8 +1,7 @@
-// keybinding-conflicts.js — Take over GNOME built-in window shortcuts that
-// collide with our directional-nav accelerators, and restore them later.
+// keybinding-conflicts.js — Take over GNOME built-in shortcuts that collide
+// with our directional-nav accelerators, and restore them later.
 import Gio from 'gi://Gio';
 
-// GNOME built-in window keybindings that may collide with <prefix>+arrows.
 const KNOWN = [
   {
     schema: 'org.gnome.desktop.wm.keybindings',
@@ -21,13 +20,8 @@ const KNOWN = [
   },
 ];
 
-/**
- * Normalize an accelerator string to a comparable form: sorted lowercase
- * modifier set + lowercase key name. `<Alt><Super>Left` and `<Super><Alt>Left`
- * compare equal. Pure — no Gtk dependency (unavailable in the shell process).
- * @param {string} accel
- * @returns {string}
- */
+// Normalize an accel to sorted-mods + key so modifier order doesn't matter.
+// No Gtk dependency (unavailable in the shell process).
 export function normalizeAccel(accel) {
   if (!accel) return '|';
   const mods = [];
@@ -39,15 +33,8 @@ export function normalizeAccel(accel) {
   return `${mods.join('+')}|${key}`;
 }
 
-/**
- * Merge freshly recorded takeover records into an existing backup.
- * Old records win: an original captured earlier must never be replaced by a
- * later (possibly already-stripped) value, and records for keys we did not
- * touch this run are kept so restore() can still return them. Pure.
- * @param {Array<{schema: string, key: string, original: string[]}>} existing
- * @param {Array<{schema: string, key: string, original: string[]}>} fresh
- * @returns {Array<{schema: string, key: string, original: string[]}>}
- */
+// Merge fresh takeover records into an existing backup. Old records win — an
+// earlier-captured original must never be replaced by an already-stripped value.
 export function mergeBackupRecords(existing, fresh) {
   const merged = new Map(existing.map(r => [`${r.schema}/${r.key}`, r]));
   for (const r of fresh) {
@@ -58,13 +45,11 @@ export function mergeBackupRecords(existing, fresh) {
 }
 
 export class KeybindingConflictManager {
-  /** @param {Gio.Settings} extensionSettings - our settings (holds the backup key) */
   constructor(extensionSettings) {
     this._extSettings = extensionSettings;
     this._records = []; // [{ schema, key, original: string[] }]
   }
 
-  // Parse the persisted backup, tolerating an absent or corrupt value.
   _readBackup() {
     let records = [];
     try {
@@ -91,9 +76,8 @@ export class KeybindingConflictManager {
 
   // Remove any of `accels` from known GNOME keybindings, recording originals.
   takeOver(accels) {
-    // Merge into any backup already on disk rather than overwriting it: if a
-    // key was stripped in an earlier run whose restore never happened, its
-    // original lives only in that backup and must survive this run.
+    // Merge with any on-disk backup — it may hold originals from a run whose
+    // restore never happened.
     const existing = this._readBackup();
 
     const fresh = [];
@@ -118,7 +102,6 @@ export class KeybindingConflictManager {
     this._extSettings.set_string('nav-keybinding-backup', JSON.stringify(this._records));
   }
 
-  // Restore everything taken over and clear the backup.
   restore() {
     for (const { schema, key, original } of this._records) {
       try {

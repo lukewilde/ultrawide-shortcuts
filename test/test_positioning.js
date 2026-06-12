@@ -22,7 +22,6 @@ function assertRect(actual, expected, msg) {
 
 // --- gridToPixels tests ---
 
-// Full-width on 16x1 grid (1920px wide monitor at origin)
 const fullHD = { x: 0, y: 0, width: 1920, height: 1080 };
 
 // Left quarter: cols 0-3 of 16
@@ -62,8 +61,7 @@ assertRect(
 );
 
 // --- gridToPixels with cellGap ---
-// 4-column 400px wide grid, 10px gap between cells
-// cellW = (400 - 3*10) / 4 = 92.5
+// 4 cols, 400px wide, 10px gap: cellW = (400 - 3*10) / 4 = 92.5
 const gapArea = { x: 0, y: 0, width: 400, height: 1080 };
 
 assertRect(
@@ -84,8 +82,7 @@ assertRect(
   'cellGap: right half span (cols 2-3)'
 );
 
-// Vertical gap: 2-row 200px tall grid, 20px row gap
-// cellH = (200 - 1*20) / 2 = 90
+// 2 rows, 200px tall, 20px gap: cellH = (200 - 1*20) / 2 = 90
 const vGapArea = { x: 0, y: 0, width: 1920, height: 200 };
 assertRect(
   gridToPixels({ anchor: { col: 0, row: 1 }, target: { col: 0, row: 1 } }, { cols: 1, rows: 2 }, vGapArea, 20),
@@ -101,14 +98,12 @@ assertRect(
 );
 
 // --- gridToPixels clamps out-of-bounds selections to the grid ---
-// Col past the right edge on a 16x1 grid clamps to the last column.
 assertRect(
   gridToPixels({ anchor: { col: 99, row: 0 }, target: { col: 99, row: 0 } }, { cols: 16, rows: 1 }, fullHD),
   { x: 1800, y: 0, width: 120, height: 1080 },
   'col past grid clamps to last column'
 );
 
-// Grid shrunk below a stored position: row 3 on a now-1-row grid clamps to row 0.
 assertRect(
   gridToPixels({ anchor: { col: 0, row: 3 }, target: { col: 3, row: 3 } }, { cols: 16, rows: 1 }, fullHD),
   { x: 0, y: 0, width: 480, height: 1080 },
@@ -117,14 +112,12 @@ assertRect(
 
 // --- shrinkWorkArea tests ---
 
-// Normal margin shrinks all four sides
 assertRect(
   shrinkWorkArea({ x: 0, y: 0, width: 1920, height: 1080 }, 16),
   { x: 16, y: 16, width: 1888, height: 1048 },
   'shrinkWorkArea: 16px margin'
 );
 
-// Zero / omitted margin is a no-op
 assertRect(
   shrinkWorkArea({ x: 100, y: 50, width: 800, height: 600 }, 0),
   { x: 100, y: 50, width: 800, height: 600 },
@@ -136,15 +129,12 @@ assertRect(
   'shrinkWorkArea: omitted margin no-op'
 );
 
-// Oversized margin clamps so the area stays positive (500px on a portrait
-// 600px-wide monitor would otherwise go negative)
 const portraitShrunk = shrinkWorkArea({ x: 0, y: 0, width: 600, height: 1000 }, 500);
 assert(
   portraitShrunk.width > 0 && portraitShrunk.height > 0,
   `shrinkWorkArea: oversized margin keeps area positive, got w:${portraitShrunk.width},h:${portraitShrunk.height}`
 );
 
-// Negative margin clamps to 0
 assertRect(
   shrinkWorkArea({ x: 0, y: 0, width: 1920, height: 1080 }, -10),
   { x: 0, y: 0, width: 1920, height: 1080 },
@@ -178,7 +168,6 @@ const winLeft = { x: 0, width: 480, ...H };
 assertEq(pickNeighbour(winLeft, cands, 'wider'), 1, 'wider picks nearest-width (centerH over sameCtr)');
 assertEq(pickNeighbour(winLeft, cands, 'narrower'), -1, 'narrower at narrowest extreme is -1');
 
-// Left extreme no-op: window on leftQ has nothing further left
 assertEq(pickNeighbour(winLeft, cands, 'left'), -1, 'left at leftmost extreme is -1');
 
 // Wider tie-break by position: equal-width candidates, pick closer center
@@ -193,14 +182,10 @@ const offRight = { x: 3200, width: 1280, y: 0, height: 1440 }; // centerX 3840
 const winOffLeft = { x: 1920, width: 1280, y: 0, height: 1440 };
 assertEq(pickNeighbour(winOffLeft, [offLeft, offRight], 'right'), 1, 'offset monitor: right picks the right rect');
 
-// Unknown direction returns -1
 assertEq(pickNeighbour(winCenter, cands, 'sideways'), -1, 'unknown direction is -1');
 
-// --- Left/right symmetry: on a center tie, prefer the narrower split ---
-// Window centered (cx 960, width 960). On each side two candidates share the
-// same center but differ in width — one narrower, one wider. Left and right
-// must both pick the narrower one, regardless of config order, so the two
-// directions behave as mirror images.
+// --- Left/right symmetry: on a center tie, both directions must prefer the
+// narrower split regardless of config order ---
 const symWin = { x: 480, width: 960, ...H }; // cx 960
 const leftNarrow = { x: 480, width: 480, ...H };  // cx 720, narrower
 const leftWide = { x: 0, width: 1440, ...H };     // cx 720, wider

@@ -6,10 +6,8 @@ import GioUnix from 'gi://GioUnix';
 import GLib from 'gi://GLib';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
-// Adw.AlertDialog (+ present(parent)) landed in libadwaita 1.5 / GNOME 46.
-// On 45 the equivalent is Adw.MessageDialog, a Gtk.Window that takes a
-// transient parent and presents with no argument. The response API
-// (add_response/set_default_response/set_close_response/'response') is shared.
+// Adw.AlertDialog landed in libadwaita 1.5 (GNOME 46); on 45 use
+// Adw.MessageDialog (transient parent + argless present). Response API is shared.
 const _HAS_ALERT_DIALOG = typeof Adw.AlertDialog !== 'undefined';
 
 function makeAlertDialog(props) {
@@ -81,7 +79,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
 
     this._loadBindings();
 
-    // Add binding button
     const addButton = new Gtk.Button({
       label: 'Add App Shortcut',
       css_classes: ['suggested-action'],
@@ -115,7 +112,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     });
     this._positionsPage.add(positionsDescGroup);
 
-    // Add Window Position button — stored so _loadPositions can keep it last
+    // Stored so _loadPositions can keep it last.
     this._addPositionGroup = new Adw.PreferencesGroup();
     const addPositionButton = new Gtk.Button({
       label: 'Add Window Position',
@@ -356,9 +353,8 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     this._window.add_controller(controller);
   }
 
-  // Resolve a wmClass to a desktop app via the same .desktop database the
-  // shell's AppSystem uses (unavailable in the prefs process). Direct id
-  // lookup first, then a StartupWMClass/id scan — mirrors _showLaunchOsd.
+  // Resolve a wmClass via DesktopAppInfo — the shell's AppSystem is
+  // unavailable in the prefs process. Mirrors the extension's _resolveApp.
   _resolveAppInfo(wmClass) {
     if (!wmClass) return null;
     const lc = wmClass.toLowerCase();
@@ -373,9 +369,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     return info;
   }
 
-  // Set a binding row's icon prefix, title (friendly app name) and subtitle
-  // (wmClass · shortcut) from the current saved binding. Falls back to the
-  // raw wmClass + a generic icon when resolution misses — matching the OSD.
   _refreshBindingHeader(row, image, index) {
     const binding = this._getBindings()[index] ?? {};
     const wmClass = binding.wmClass || '';
@@ -397,7 +390,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     row.add_prefix(appIcon);
     this._refreshBindingHeader(row, appIcon, index);
 
-    // Shortcut field
     const shortcutRow = new Adw.ActionRow({ title: 'Shortcut' });
     const shortcutLabel = new Gtk.Label({
       label: this._accelToLabel(binding.shortcut),
@@ -420,7 +412,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     shortcutRow.add_suffix(setShortcutBtn);
     row.add_row(shortcutRow);
 
-    // WM Class field + detect button
     const wmClassRow = new Adw.EntryRow({ title: 'Window class' });
     wmClassRow.set_text(binding.wmClass || '');
     wmClassRow.connect('changed', () => {
@@ -440,7 +431,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     wmClassRow.add_suffix(detectButton);
     row.add_row(wmClassRow);
 
-    // Command field
     const commandRow = new Adw.EntryRow({ title: 'Launch Command' });
     commandRow.set_text(binding.command || '');
     commandRow.connect('changed', () => {
@@ -448,7 +438,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
     });
     row.add_row(commandRow);
 
-    // Delete button
     const deleteRow = new Adw.ActionRow();
     const deleteButton = new Gtk.Button({
       label: 'Remove Shortcut',
@@ -505,8 +494,6 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
 
       const json = result.get_child_value(0).get_string()[0];
       const windows = JSON.parse(json);
-
-      // Deduplicate by wmClass
       const unique = [...new Map(windows.map(w => [w.wmClass, w])).values()];
 
       if (unique.length === 0) {
@@ -514,13 +501,11 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
         return;
       }
 
-      // Show a dialog with window list
       const dialog = makeAlertDialog({
         heading: 'Select Window',
         body: 'Choose a running application:',
       });
 
-      // Add each WM class as a response
       unique.forEach((w, i) => {
         dialog.add_response(`win-${i}`, `${w.wmClass}  —  ${w.windowTitle}`);
       });
@@ -637,8 +622,7 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       const [c1, r1] = tokens[0].split(':').map(Number);
       const [c2, r2] = tokens[1].split(':').map(Number);
       if ([c1, r1, c2, r2].some(n => isNaN(n) || n < 1)) return null;
-      // Reject coords past the grid so they show as an error rather than
-      // saving a position that would land off-screen.
+      // Out-of-grid coords are an error, not a position that lands off-screen.
       if (c1 > maxCol || c2 > maxCol || r1 > maxRow || r2 > maxRow) return null;
       return { anchor: { col: c1, row: r1 }, target: { col: c2, row: r2 } };
     });

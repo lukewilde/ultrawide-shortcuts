@@ -10,22 +10,17 @@ import { KeybindingConflictManager } from './keybinding-conflicts.js';
 import { DragSnapManager } from './drag-snap.js';
 import { EdgeSnapManager } from './edge-snap.js';
 
-// GNOME Shell's OSD auto-hides 1500ms after the last show() call; re-showing
-// resets that timer. Refresh below 1500ms to keep the OSD up for the whole
-// double-press window, then hideAll() when the window closes.
+// The shell OSD auto-hides 1500ms after the last show(); refresh under that to
+// keep it up for the whole double-press window.
 const OSD_REFRESH_MS = 1000;
 const LAUNCH_OSD_MS = 1000;
 
-// Coalesce window of rapid 'positions'/'bindings' writes. Each Adw.EntryRow in
-// prefs fires 'changed' per keystroke, and a positions reload tears down and
-// re-grabs the Super-arrow nav keys (restoring system bindings, then stripping
-// them again). Without debouncing, typing a grid name rewrites mutter's
-// keybindings on every character and reopens the deferred-grab race window.
+// Prefs fires 'changed' per keystroke; an undebounced positions reload would
+// rewrite mutter's nav keybindings on every character.
 const SETTINGS_RELOAD_DEBOUNCE_MS = 300;
 
-// Built-in fallback positions — mirrors the schema default. Used only when the
-// 'positions' key has never been set, or holds a non-array value. A user who
-// explicitly clears all grids gets an empty layout, not these.
+// Mirrors the schema default. Used only when 'positions' was never set or is
+// invalid — an explicitly emptied list stays empty.
 const DEFAULT_POSITIONS = [
   {
     name: 'Columns',
@@ -69,16 +64,16 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._navActions = [];
     this._navPending = [];
     this._navGrabId = null;
-    this._reloadTimers = new Map(); // key -> GLib source id (debounced settings reloads)
+    this._reloadTimers = new Map(); // key -> GLib source id
     this._conflicts = new KeybindingConflictManager(this._settings);
     this._launching = false;
     this._launchingTimerId = null;
     this._osdHideId = null;
     this._lastPreset = null; // { key, windowId, index }
     this._presetTimerId = null;
-    this._focusHistory = []; // stableSequence[], most-recently-focused first
-    this._cycleSnapshot = null; // { wmClass, order: stableSequence[] } — stable order for active cycle
-    this._pendingLaunch = null; // { key, timeoutId } — set after first press, cleared on confirm/timeout
+    this._focusHistory = []; // stableSequence[], MRU first
+    this._cycleSnapshot = null; // { wmClass, order: stableSequence[] }
+    this._pendingLaunch = null; // { key, timeoutId }
     this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
     this._doublePressTimeoutMs = this._settings.get_int('double-press-timeout-ms');
     global.display.connectObject(
@@ -159,9 +154,6 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._cycleSnapshot = null;
   }
 
-  // Coalesce rapid settings writes (one per keystroke from prefs) into a single
-  // reload after the user pauses typing. Keyed so 'bindings' and 'positions'
-  // debounce independently.
   _scheduleReload(key, fn) {
     const existing = this._reloadTimers.get(key);
     if (existing) GLib.source_remove(existing);
@@ -241,8 +233,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   _getPositions() {
     const parsed = JSON.parse(this._settings.get_string('positions'));
     if (!Array.isArray(parsed)) return DEFAULT_POSITIONS;
-    // An explicit empty array (user deleted every grid in prefs) must stay
-    // empty — only resurrect the defaults when the key has never been set.
+    // Only resurrect the defaults when the key has never been set.
     if (parsed.length === 0 && this._settings.get_user_value('positions') === null)
       return DEFAULT_POSITIONS;
     return parsed;
@@ -286,7 +277,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     const focused = global.display.focus_window;
     if (!focused || !shortcutConfig.positions.length) return;
 
-    // Cycle: same shortcut + same window within 1s advances index
+    // Same shortcut + same window within 1s cycles to the next position.
     const focusedId = focused.get_stable_sequence();
     let nextIndex = 0;
     if (this._lastPreset &&
@@ -303,7 +294,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       return GLib.SOURCE_REMOVE;
     });
 
-    // Convert 1-indexed storage coords to 0-indexed for gridToPixels
+    // 1-indexed storage → 0-indexed for gridToPixels.
     const pos = shortcutConfig.positions[nextIndex];
     if (!pos?.anchor || !pos?.target) return;
     const selection = {
@@ -325,8 +316,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   _applySelectionToFocused(grid, focused, selection) {
     const workArea = this._workAreaFor(grid, focused);
     const rect = gridToPixels(selection, { cols: grid.cols, rows: grid.rows }, workArea, grid.cellGap);
-    // Fullscreen windows ignore move_resize_frame, so leave fullscreen first or
-    // the shortcut looks dead (video players, games, F11'd browsers).
+    // Fullscreen windows ignore move_resize_frame.
     if (focused.is_fullscreen()) focused.unmake_fullscreen();
     unmaximizeWindow(focused);
     focused.move_resize_frame(
@@ -340,7 +330,6 @@ export default class UltrawideShortcutsExtension extends Extension {
 
   // --- Directional navigation (move focused window between grid positions) ---
 
-  // Flatten every position (including cycle variants) into pixel candidates.
   _buildCandidates(grid, focused) {
     const workArea = this._workAreaFor(grid, focused);
     const gridSize = { cols: grid.cols, rows: grid.rows };
@@ -396,11 +385,9 @@ export default class UltrawideShortcutsExtension extends Extension {
         this._navPending.push({ accel: `${grid.navPrefix}${key}`, grid, direction });
     }
 
-    // Mutter only drops the bindings takeOver() removed when the GSettings
-    // change is dispatched on a later main-loop iteration. Grabbing in the
-    // same stack frame races that and fails — leaving the key stripped from
-    // mutter but grabbed by nobody (dead). Defer the first attempt, and retry
-    // briefly in case the settings notification is slow to arrive.
+    // Mutter releases the bindings takeOver() stripped only on a later
+    // main-loop iteration; grabbing in the same stack frame races that and
+    // leaves the key dead. Defer the first attempt and retry briefly.
     this._navGrabRetries = 5;
     this._navGrabId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE,
       () => this._grabPendingNav());
@@ -481,8 +468,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   _onFocusChanged() {
     const w = global.display.focus_window;
     if (!w) return;
-    // If focus moved to a window outside the active cycle's app, end the snapshot
-    // so the next summon starts a fresh MRU sort.
+    // Focus left the cycling app — end the snapshot so the next summon re-sorts.
     if (this._cycleSnapshot) {
       const wc = (w.get_wm_class() || '').toLowerCase();
       if (!wc.includes(this._cycleSnapshot.wmClass))
@@ -499,8 +485,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     const windows = this._getWindows()
       .filter(w => w.wmClass.toLowerCase().includes(lc));
 
-    // During an active cycling session, sort by the snapshot taken at session start
-    // so mid-cycle history updates can't scramble the order.
+    // Mid-cycle, keep the snapshot order so history updates can't scramble it.
     if (this._cycleSnapshot && this._cycleSnapshot.wmClass === lc) {
       const order = this._cycleSnapshot.order;
       return windows.sort((a, b) => {
@@ -513,8 +498,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       });
     }
 
-    // Fresh sort: MRU order. Add any unvisited windows to the history tail so
-    // they rank as least-recently-used rather than triggering special-case logic.
+    // Fresh MRU sort; unvisited windows go to the history tail.
     for (const w of windows) {
       if (!this._focusHistory.includes(w.stableSequence))
         this._focusHistory.push(w.stableSequence);
@@ -523,7 +507,6 @@ export default class UltrawideShortcutsExtension extends Extension {
       this._focusHistory.indexOf(a.stableSequence) -
       this._focusHistory.indexOf(b.stableSequence));
 
-    // Pin this order as the snapshot for the upcoming cycle session.
     this._cycleSnapshot = { wmClass: lc, order: sorted.map(m => m.stableSequence) };
     return sorted;
   }
@@ -536,8 +519,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       // No matching window — launch the application
       if (this._launching || !command) return;
 
-      // Only gate accelerator-driven presses (shortcut provided). D-Bus
-      // callers bypass the double-press requirement.
+      // Only accelerator presses are gated; D-Bus callers bypass double-press.
       if (this._requireDoublePress && shortcut) {
         if (this._pendingLaunch && this._pendingLaunch.key === shortcut) {
           const { icon, name } = this._pendingLaunch;
@@ -618,7 +600,6 @@ export default class UltrawideShortcutsExtension extends Extension {
     const lc = wmClass.toLowerCase();
     let app = appSystem.lookup_app(`${lc}.desktop`);
     if (!app) {
-      // Fallback: scan installed DesktopAppInfo entries for a matching id or WM class
       const installed = appSystem.get_installed?.() || [];
       app = installed.find(info => {
         const id = (info.get_id?.() || '').toLowerCase();
@@ -634,8 +615,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   }
 
   _showOsd(icon, label) {
-    // OSD API changed in GNOME 48: show(monitorIndex, icon, label, level)
-    // became show(icon, label, levels), with showAll() for all monitors.
+    // GNOME 48 replaced show(monitorIndex, …) with showAll().
     if (Main.osdWindowManager.showAll)
       Main.osdWindowManager.showAll(icon, label, null, null);
     else

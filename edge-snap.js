@@ -1,6 +1,5 @@
-// edge-snap.js — Snap to grid positions touching a monitor edge when the
-// pointer drags near that edge. Always-on (no modifier needed). Yields to
-// drag-snap when any configured drag-snap modifier is held.
+// edge-snap.js — Modifier-free snapping to edge-touching grid positions when
+// dragging near a monitor edge. Yields to drag-snap while its modifier is held.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -102,9 +101,7 @@ export class EdgeSnapManager {
         : 'none',
     };
 
-    // Cache the parsed grids once per drag — the poll tick runs every 16 ms and
-    // both _dragSnapMaskUnion and _collectCandidates would otherwise re-parse
-    // the whole config at ~60 Hz.
+    // Parse grids once per drag — the tick must not JSON.parse at 60 Hz.
     this._cachedGrids = this._extension._getPositions();
 
     this._ensureOverlay();
@@ -211,10 +208,8 @@ export class EdgeSnapManager {
       return;
     }
 
-    // Invalidate the lock when the pointer crosses to another monitor (adjacent
-    // monitors' edge zones are contiguous, so we never leave a zone) or when the
-    // active-edge set changes (e.g. sliding from an edge into a corner adds an
-    // edge that wasn't bucketed at lock time).
+    // Invalidate the lock on monitor change (adjacent zones are contiguous, so
+    // we never leave one) or when the edge set changes (edge → corner).
     const edgeKey = `${edges.left ? 'L' : ''}${edges.right ? 'R' : ''}` +
                     `${edges.top ? 'T' : ''}${edges.bottom ? 'B' : ''}`;
     if (this._lockedCandidates &&
@@ -233,9 +228,8 @@ export class EdgeSnapManager {
     this._updateOverlay(bestRect);
   }
 
-  // Vertical edges cycle: pointer Y maps to width-sorted index (widest at top).
-  // Horizontal edges pick by closest pixel-center to pointer. At a corner, the
-  // two per-edge picks compete on closest-center.
+  // Vertical edges: pointer Y maps to a width-sorted index. Horizontal edges:
+  // closest center. Corners: the per-edge picks compete on closest center.
   _pickCandidate(groups, wa, edges, px, py) {
     const picks = [];
     if (edges.left   && groups.left.length)   picks.push(this._cyclePick(groups.left,   py, wa.y, wa.height));
@@ -298,9 +292,6 @@ export class EdgeSnapManager {
         }
       }
     }
-    // Dedupe identical rects across all buckets. Left/right are sorted
-    // descending by width (index 0 = widest at top of screen) for _cyclePick.
-    // Top/bottom are not sorted — _closestByCenter does its own scan.
     const dedupe = arr => {
       const seen = new Set();
       const out = [];
@@ -312,9 +303,8 @@ export class EdgeSnapManager {
       }
       return out;
     };
-    // Horizontal tie-break: top edge prefers narrowest, bottom edge prefers
-    // widest. _closestByCenter scans in order with strict `<`, so the first
-    // entry wins ties.
+    // Left/right: widest-first for _cyclePick. Top/bottom: _closestByCenter's
+    // strict `<` makes the first entry win ties — narrowest for top, widest for bottom.
     groups.left   = dedupe(groups.left).sort((a, b) => b.width - a.width);
     groups.right  = dedupe(groups.right).sort((a, b) => b.width - a.width);
     groups.top    = dedupe(groups.top).sort((a, b) => a.width - b.width);
