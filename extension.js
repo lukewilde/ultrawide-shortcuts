@@ -9,6 +9,12 @@ import { KeybindingConflictManager } from './keybinding-conflicts.js';
 import { DragSnapManager } from './drag-snap.js';
 import { EdgeSnapManager } from './edge-snap.js';
 
+// GNOME Shell's OSD auto-hides 1500ms after the last show() call; re-showing
+// resets that timer. Refresh below 1500ms to keep the OSD up for the whole
+// double-press window, then hideAll() when the window closes.
+const OSD_REFRESH_MS = 1000;
+const LAUNCH_OSD_MS = 1000;
+
 // Built-in fallback positions — mirrors the schema default.
 // Used only when the 'positions' GSettings key is empty or unparseable.
 const DEFAULT_POSITIONS = [
@@ -57,6 +63,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._conflicts = new KeybindingConflictManager(this._settings);
     this._launching = false;
     this._launchingTimerId = null;
+    this._osdHideId = null;
     this._lastPreset = null; // { key, windowId, index }
     this._presetTimerId = null;
     this._focusHistory = []; // stableSequence[], most-recently-focused first
@@ -110,6 +117,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       this._launchingTimerId = null;
     }
     this._clearPendingLaunch();
+    this._cancelOsdHide();
 
     if (this._edgeSnap) {
       this._edgeSnap.disable();
@@ -496,15 +504,32 @@ export default class UltrawideShortcutsExtension extends Extension {
       // callers bypass the double-press requirement.
       if (this._requireDoublePress && shortcut) {
         if (this._pendingLaunch && this._pendingLaunch.key === shortcut) {
+          const { icon, name } = this._pendingLaunch;
           this._clearPendingLaunch();
+          this._showOsd(icon, `Launching ${name}`);
+          this._osdHideId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, LAUNCH_OSD_MS, () => {
+            this._osdHideId = null;
+            Main.osdWindowManager.hideAll();
+            return GLib.SOURCE_REMOVE;
+          });
           // fall through to launch
         } else {
           this._clearPendingLaunch();
-          this._showLaunchOsd(wmClass);
+          this._cancelOsdHide();
+          const { icon, name } = this._resolveApp(wmClass);
+          const label = `Press again to launch ${name}`;
+          this._showOsd(icon, label);
           this._pendingLaunch = {
             key: shortcut,
+            icon, name,
+            refreshId: GLib.timeout_add(GLib.PRIORITY_DEFAULT, OSD_REFRESH_MS, () => {
+              this._showOsd(icon, label);
+              return GLib.SOURCE_CONTINUE;
+            }),
             timeoutId: GLib.timeout_add(GLib.PRIORITY_DEFAULT, this._doublePressTimeoutMs, () => {
-              this._pendingLaunch = null;
+              this._pendingLaunch.timeoutId = null;
+              this._clearPendingLaunch();
+              Main.osdWindowManager.hideAll();
               return GLib.SOURCE_REMOVE;
             }),
           };
@@ -541,10 +566,18 @@ export default class UltrawideShortcutsExtension extends Extension {
     if (!this._pendingLaunch) return;
     if (this._pendingLaunch.timeoutId)
       GLib.source_remove(this._pendingLaunch.timeoutId);
+    if (this._pendingLaunch.refreshId)
+      GLib.source_remove(this._pendingLaunch.refreshId);
     this._pendingLaunch = null;
   }
 
-  _showLaunchOsd(wmClass) {
+  _cancelOsdHide() {
+    if (!this._osdHideId) return;
+    GLib.source_remove(this._osdHideId);
+    this._osdHideId = null;
+  }
+
+  _resolveApp(wmClass) {
     const appSystem = Shell.AppSystem.get_default();
     const lc = wmClass.toLowerCase();
     let app = appSystem.lookup_app(`${lc}.desktop`);
@@ -558,9 +591,13 @@ export default class UltrawideShortcutsExtension extends Extension {
       });
     }
 
-    const icon = app?.get_icon?.() ?? new Gio.ThemedIcon({ name: 'system-run-symbolic' });
-    const displayName = app?.get_name?.() ?? wmClass;
-    const label = `Press again to launch ${displayName}`;
+    return {
+      icon: app?.get_icon?.() ?? new Gio.ThemedIcon({ name: 'system-run-symbolic' }),
+      name: app?.get_name?.() ?? wmClass,
+    };
+  }
+
+  _showOsd(icon, label) {
     // OSD API changed in GNOME 48: show(monitorIndex, icon, label, level)
     // became show(icon, label, levels), with showAll() for all monitors.
     if (Main.osdWindowManager.showAll)
