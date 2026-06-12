@@ -222,7 +222,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       );
 
       const name = Meta.external_binding_name_for_action(action);
-      Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+      Main.wm.allowKeybinding(name, Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW);
 
       this._actions.push({ action, handlerId });
     }
@@ -268,7 +268,7 @@ export default class UltrawideShortcutsExtension extends Extension {
         );
 
         const name = Meta.external_binding_name_for_action(action);
-        Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+        Main.wm.allowKeybinding(name, Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW);
         this._positionActions.push({ action, handlerId });
       }
     }
@@ -429,7 +429,7 @@ export default class UltrawideShortcutsExtension extends Extension {
       );
 
       const name = Meta.external_binding_name_for_action(action);
-      Main.wm.allowKeybinding(name, Shell.ActionMode.ALL);
+      Main.wm.allowKeybinding(name, Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW);
       this._navActions.push({ action, handlerId });
       return false;
     });
