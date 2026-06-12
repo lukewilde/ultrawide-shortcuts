@@ -335,6 +335,9 @@ export default class UltrawideShortcutsExtension extends Extension {
   _applySelectionToFocused(grid, focused, selection) {
     const workArea = this._workAreaFor(grid, focused);
     const rect = gridToPixels(selection, { cols: grid.cols, rows: grid.rows }, workArea, grid.cellGap);
+    // Fullscreen windows ignore move_resize_frame, so leave fullscreen first or
+    // the shortcut looks dead (video players, games, F11'd browsers).
+    if (focused.is_fullscreen()) focused.unmake_fullscreen();
     unmaximizeWindow(focused);
     focused.move_resize_frame(
       false,
