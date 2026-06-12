@@ -7,7 +7,10 @@ const KNOWN = [
   {
     schema: 'org.gnome.desktop.wm.keybindings',
     keys: ['maximize', 'unmaximize', 'toggle-maximized',
-      'maximize-horizontally', 'maximize-vertically'],
+      'maximize-horizontally', 'maximize-vertically',
+      'switch-to-workspace-left', 'switch-to-workspace-right',
+      'move-to-workspace-left', 'move-to-workspace-right',
+      'move-to-monitor-left', 'move-to-monitor-right'],
   },
   {
     schema: 'org.gnome.mutter.keybindings',
