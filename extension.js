@@ -16,6 +16,13 @@ import { EdgeSnapManager } from './edge-snap.js';
 const OSD_REFRESH_MS = 1000;
 const LAUNCH_OSD_MS = 1000;
 
+// Coalesce window of rapid 'positions'/'bindings' writes. Each Adw.EntryRow in
+// prefs fires 'changed' per keystroke, and a positions reload tears down and
+// re-grabs the Super-arrow nav keys (restoring system bindings, then stripping
+// them again). Without debouncing, typing a grid name rewrites mutter's
+// keybindings on every character and reopens the deferred-grab race window.
+const SETTINGS_RELOAD_DEBOUNCE_MS = 300;
+
 // Built-in fallback positions — mirrors the schema default. Used only when the
 // 'positions' key has never been set, or holds a non-array value. A user who
 // explicitly clears all grids gets an empty layout, not these.
@@ -62,6 +69,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._navActions = [];
     this._navPending = [];
     this._navGrabId = null;
+    this._reloadTimers = new Map(); // key -> GLib source id (debounced settings reloads)
     this._conflicts = new KeybindingConflictManager(this._settings);
     this._launching = false;
     this._launchingTimerId = null;
@@ -83,16 +91,16 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._registerNav();
 
     this._settings.connectObject(
-      'changed::bindings', () => {
+      'changed::bindings', () => this._scheduleReload('bindings', () => {
         this._unregisterBindings();
         this._registerBindings();
-      },
-      'changed::positions', () => {
+      }),
+      'changed::positions', () => this._scheduleReload('positions', () => {
         this._unregisterPositions();
         this._unregisterNav();
         this._registerPositions();
         this._registerNav();
-      },
+      }),
       'changed::require-double-press-to-launch', () => {
         this._requireDoublePress = this._settings.get_boolean('require-double-press-to-launch');
         if (!this._requireDoublePress) this._clearPendingLaunch();
@@ -121,6 +129,9 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._clearPendingLaunch();
     this._cancelOsdHide();
 
+    for (const id of this._reloadTimers.values()) GLib.source_remove(id);
+    this._reloadTimers.clear();
+
     if (this._edgeSnap) {
       this._edgeSnap.disable();
       this._edgeSnap = null;
@@ -146,6 +157,21 @@ export default class UltrawideShortcutsExtension extends Extension {
     this._lastPreset = null;
     this._focusHistory = null;
     this._cycleSnapshot = null;
+  }
+
+  // Coalesce rapid settings writes (one per keystroke from prefs) into a single
+  // reload after the user pauses typing. Keyed so 'bindings' and 'positions'
+  // debounce independently.
+  _scheduleReload(key, fn) {
+    const existing = this._reloadTimers.get(key);
+    if (existing) GLib.source_remove(existing);
+    const id = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT, SETTINGS_RELOAD_DEBOUNCE_MS, () => {
+        this._reloadTimers.delete(key);
+        fn();
+        return GLib.SOURCE_REMOVE;
+      });
+    this._reloadTimers.set(key, id);
   }
 
   _setupDbus() {
