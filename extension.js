@@ -16,8 +16,9 @@ import { EdgeSnapManager } from './edge-snap.js';
 const OSD_REFRESH_MS = 1000;
 const LAUNCH_OSD_MS = 1000;
 
-// Built-in fallback positions — mirrors the schema default.
-// Used only when the 'positions' GSettings key is empty or unparseable.
+// Built-in fallback positions — mirrors the schema default. Used only when the
+// 'positions' key has never been set, or holds a non-array value. A user who
+// explicitly clears all grids gets an empty layout, not these.
 const DEFAULT_POSITIONS = [
   {
     name: 'Columns',
@@ -210,7 +211,12 @@ export default class UltrawideShortcutsExtension extends Extension {
 
   _getPositions() {
     const parsed = JSON.parse(this._settings.get_string('positions'));
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_POSITIONS;
+    if (!Array.isArray(parsed)) return DEFAULT_POSITIONS;
+    // An explicit empty array (user deleted every grid in prefs) must stay
+    // empty — only resurrect the defaults when the key has never been set.
+    if (parsed.length === 0 && this._settings.get_user_value('positions') === null)
+      return DEFAULT_POSITIONS;
+    return parsed;
   }
 
   _registerPositions() {
