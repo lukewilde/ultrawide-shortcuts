@@ -628,13 +628,18 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
       .join(', ');
   }
 
-  _textToPositions(text) {
+  _textToPositions(text, grid) {
+    const maxCol = grid?.cols ?? Infinity;
+    const maxRow = grid?.rows ?? Infinity;
     const results = text.split(',').map(part => {
       const tokens = part.trim().split(/\s+/);
       if (tokens.length < 2) return null;
       const [c1, r1] = tokens[0].split(':').map(Number);
       const [c2, r2] = tokens[1].split(':').map(Number);
       if ([c1, r1, c2, r2].some(n => isNaN(n) || n < 1)) return null;
+      // Reject coords past the grid so they show as an error rather than
+      // saving a position that would land off-screen.
+      if (c1 > maxCol || c2 > maxCol || r1 > maxRow || r2 > maxRow) return null;
       return { anchor: { col: c1, row: r1 }, target: { col: c2, row: r2 } };
     });
     return results.includes(null) ? [] : results;
@@ -919,7 +924,8 @@ export default class UltrawideShortcutsPreferences extends ExtensionPreferences 
         row.set_subtitle(this._positionSummary(position, []));
         return;
       }
-      const positions = this._textToPositions(text);
+      const grid = this._getPositions()[positionIndex];
+      const positions = this._textToPositions(text, grid);
       if (positions.length > 0) {
         posEntry.remove_css_class('error');
         this._updateShortcut(positionIndex, shortcutIndex, 'positions', positions);

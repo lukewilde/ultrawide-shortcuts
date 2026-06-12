@@ -10,10 +10,14 @@
  */
 export function gridToPixels(selection, gridSize, workArea, cellGap = 0) {
   const { cols, rows } = gridSize;
-  const col1 = Math.min(selection.anchor.col, selection.target.col);
-  const row1 = Math.min(selection.anchor.row, selection.target.row);
-  const col2 = Math.max(selection.anchor.col, selection.target.col);
-  const row2 = Math.max(selection.anchor.row, selection.target.row);
+  // Clamp into the grid so a stale/oversized stored position (e.g. 99:1 on a
+  // 16-col grid, or a grid since shrunk) can't compute an off-screen rect.
+  const clampCol = c => Math.max(0, Math.min(c, cols - 1));
+  const clampRow = r => Math.max(0, Math.min(r, rows - 1));
+  const col1 = clampCol(Math.min(selection.anchor.col, selection.target.col));
+  const row1 = clampRow(Math.min(selection.anchor.row, selection.target.row));
+  const col2 = clampCol(Math.max(selection.anchor.col, selection.target.col));
+  const row2 = clampRow(Math.max(selection.anchor.row, selection.target.row));
 
   const cellW = (workArea.width - (cols - 1) * cellGap) / cols;
   const cellH = (workArea.height - (rows - 1) * cellGap) / rows;

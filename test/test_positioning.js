@@ -100,6 +100,21 @@ assertRect(
   'cellGap=0 matches no-gap'
 );
 
+// --- gridToPixels clamps out-of-bounds selections to the grid ---
+// Col past the right edge on a 16x1 grid clamps to the last column.
+assertRect(
+  gridToPixels({ anchor: { col: 99, row: 0 }, target: { col: 99, row: 0 } }, { cols: 16, rows: 1 }, fullHD),
+  { x: 1800, y: 0, width: 120, height: 1080 },
+  'col past grid clamps to last column'
+);
+
+// Grid shrunk below a stored position: row 3 on a now-1-row grid clamps to row 0.
+assertRect(
+  gridToPixels({ anchor: { col: 0, row: 3 }, target: { col: 3, row: 3 } }, { cols: 16, rows: 1 }, fullHD),
+  { x: 0, y: 0, width: 480, height: 1080 },
+  'row past shrunk grid clamps to row 0'
+);
+
 // --- pickNeighbour tests ---
 
 function assertEq(actual, expected, msg) {
