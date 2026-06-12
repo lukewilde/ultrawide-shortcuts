@@ -9,8 +9,11 @@ const KNOWN = [
     keys: ['maximize', 'unmaximize', 'toggle-maximized',
       'maximize-horizontally', 'maximize-vertically',
       'switch-to-workspace-left', 'switch-to-workspace-right',
+      'switch-to-workspace-up', 'switch-to-workspace-down',
       'move-to-workspace-left', 'move-to-workspace-right',
-      'move-to-monitor-left', 'move-to-monitor-right'],
+      'move-to-workspace-up', 'move-to-workspace-down',
+      'move-to-monitor-left', 'move-to-monitor-right',
+      'move-to-monitor-up', 'move-to-monitor-down'],
   },
   {
     schema: 'org.gnome.mutter.keybindings',
