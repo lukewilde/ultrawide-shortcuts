@@ -203,7 +203,10 @@ export default class UltrawideShortcutsExtension extends Extension {
       if (!binding.wmClass || !binding.shortcut) continue;
 
       const action = global.display.grab_accelerator(binding.shortcut, 0);
-      if (action === Meta.KeyBindingAction.NONE) continue;
+      if (action === Meta.KeyBindingAction.NONE) {
+        console.warn(`ultrawide-shortcuts: could not grab app shortcut '${binding.shortcut}' for '${binding.wmClass}' — already in use by GNOME, another extension, or a duplicate row; it will not fire`);
+        continue;
+      }
 
       const handlerId = global.display.connect(
         'accelerator-activated',
@@ -251,7 +254,10 @@ export default class UltrawideShortcutsExtension extends Extension {
       for (const shortcutConfig of grid.shortcuts) {
         if (!shortcutConfig.shortcut) continue;
         const action = global.display.grab_accelerator(shortcutConfig.shortcut, 0);
-        if (action === Meta.KeyBindingAction.NONE) continue;
+        if (action === Meta.KeyBindingAction.NONE) {
+          console.warn(`ultrawide-shortcuts: could not grab position shortcut '${shortcutConfig.shortcut}' in grid '${grid.name}' — already in use by GNOME, another extension, or a duplicate row; it will not fire`);
+          continue;
+        }
 
         const handlerId = global.display.connect(
           'accelerator-activated',
