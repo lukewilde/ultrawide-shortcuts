@@ -43,6 +43,7 @@ export class EdgeSnapManager {
     this._draggedWindow = null;
     this._currentRect = null;
     this._cachedStyle = null;
+    this._cachedGrids = null;
     this._lastRectKey = null;
     this._lockedCandidates = null;
     this._lockMonitorIdx = -1;
@@ -76,6 +77,7 @@ export class EdgeSnapManager {
     this._draggedWindow = null;
     this._currentRect = null;
     this._cachedStyle = null;
+    this._cachedGrids = null;
     this._lastRectKey = null;
     this._lockedCandidates = null;
   }
@@ -99,6 +101,11 @@ export class EdgeSnapManager {
         ? `${border}px solid rgba(${accent.r},${accent.g},${accent.b},1)`
         : 'none',
     };
+
+    // Cache the parsed grids once per drag — the poll tick runs every 16 ms and
+    // both _dragSnapMaskUnion and _collectCandidates would otherwise re-parse
+    // the whole config at ~60 Hz.
+    this._cachedGrids = this._extension._getPositions();
 
     this._ensureOverlay();
     this._startPoll();
@@ -127,6 +134,7 @@ export class EdgeSnapManager {
     this._draggedWindow = null;
     this._currentRect = null;
     this._cachedStyle = null;
+    this._cachedGrids = null;
     this._lastRectKey = null;
     this._lockedCandidates = null;
     if (this._overlay) this._overlay.hide();
@@ -155,7 +163,7 @@ export class EdgeSnapManager {
 
   _dragSnapMaskUnion() {
     let mask = 0;
-    const positions = this._extension._getPositions();
+    const positions = this._cachedGrids || this._extension._getPositions();
     for (const grid of positions) {
       const name = (grid.dragModifier || 'none').toLowerCase();
       const m = MOD_NAME_TO_MASK[name];
@@ -259,7 +267,7 @@ export class EdgeSnapManager {
   }
 
   _collectCandidates(wa, edges) {
-    const positions = this._extension._getPositions();
+    const positions = this._cachedGrids || this._extension._getPositions();
     const groups = { left: [], right: [], top: [], bottom: [] };
     for (const grid of positions) {
       if (!grid.edgeSnapEnabled) continue;

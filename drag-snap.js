@@ -49,6 +49,7 @@ export class DragSnapManager {
     this._draggedWindow = null;
     this._currentRect = null;
     this._cachedStyle = null;
+    this._cachedGrids = null;
     this._lastRectKey = null;
 
     this._overlay = null;
@@ -79,6 +80,7 @@ export class DragSnapManager {
     this._draggedWindow = null;
     this._currentRect = null;
     this._cachedStyle = null;
+    this._cachedGrids = null;
     this._lastRectKey = null;
   }
 
@@ -101,6 +103,10 @@ export class DragSnapManager {
         ? `${border}px solid rgba(${accent.r},${accent.g},${accent.b},1)`
         : 'none',
     };
+
+    // Cache the parsed grids once per drag — the poll tick runs every 16 ms and
+    // a fresh JSON.parse there would re-parse the whole config at ~60 Hz.
+    this._cachedGrids = this._extension._getPositions();
 
     this._ensureOverlay();
     this._startPoll();
@@ -132,6 +138,7 @@ export class DragSnapManager {
     this._draggedWindow = null;
     this._currentRect = null;
     this._cachedStyle = null;
+    this._cachedGrids = null;
     this._lastRectKey = null;
     if (this._overlay) this._overlay.hide();
   }
@@ -194,7 +201,7 @@ export class DragSnapManager {
   // snap disabled for that grid.
   _selectGrid(trackedMask) {
     if (trackedMask === 0) return null;
-    const positions = this._extension._getPositions();
+    const positions = this._cachedGrids || this._extension._getPositions();
     for (const grid of positions) {
       const name = (grid.dragModifier || 'none').toLowerCase();
       if (name === 'none') continue;
