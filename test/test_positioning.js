@@ -1,5 +1,5 @@
 // Run with: gjs -m test/test_positioning.js
-import { gridToPixels, pickNeighbour } from '../positioning.js';
+import { gridToPixels, pickNeighbour, shrinkWorkArea } from '../positioning.js';
 
 let passed = 0;
 let failed = 0;
@@ -113,6 +113,42 @@ assertRect(
   gridToPixels({ anchor: { col: 0, row: 3 }, target: { col: 3, row: 3 } }, { cols: 16, rows: 1 }, fullHD),
   { x: 0, y: 0, width: 480, height: 1080 },
   'row past shrunk grid clamps to row 0'
+);
+
+// --- shrinkWorkArea tests ---
+
+// Normal margin shrinks all four sides
+assertRect(
+  shrinkWorkArea({ x: 0, y: 0, width: 1920, height: 1080 }, 16),
+  { x: 16, y: 16, width: 1888, height: 1048 },
+  'shrinkWorkArea: 16px margin'
+);
+
+// Zero / omitted margin is a no-op
+assertRect(
+  shrinkWorkArea({ x: 100, y: 50, width: 800, height: 600 }, 0),
+  { x: 100, y: 50, width: 800, height: 600 },
+  'shrinkWorkArea: zero margin no-op'
+);
+assertRect(
+  shrinkWorkArea({ x: 100, y: 50, width: 800, height: 600 }),
+  { x: 100, y: 50, width: 800, height: 600 },
+  'shrinkWorkArea: omitted margin no-op'
+);
+
+// Oversized margin clamps so the area stays positive (500px on a portrait
+// 600px-wide monitor would otherwise go negative)
+const portraitShrunk = shrinkWorkArea({ x: 0, y: 0, width: 600, height: 1000 }, 500);
+assert(
+  portraitShrunk.width > 0 && portraitShrunk.height > 0,
+  `shrinkWorkArea: oversized margin keeps area positive, got w:${portraitShrunk.width},h:${portraitShrunk.height}`
+);
+
+// Negative margin clamps to 0
+assertRect(
+  shrinkWorkArea({ x: 0, y: 0, width: 1920, height: 1080 }, -10),
+  { x: 0, y: 0, width: 1920, height: 1080 },
+  'shrinkWorkArea: negative margin clamps to 0'
 );
 
 // --- pickNeighbour tests ---

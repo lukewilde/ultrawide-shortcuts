@@ -4,7 +4,7 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels, pickNeighbour } from './positioning.js';
+import { gridToPixels, pickNeighbour, shrinkWorkArea } from './positioning.js';
 import { unmaximizeWindow } from './compat.js';
 import { KeybindingConflictManager } from './keybinding-conflicts.js';
 import { DragSnapManager } from './drag-snap.js';
@@ -318,17 +318,7 @@ export default class UltrawideShortcutsExtension extends Extension {
     const monitorIdx = focused.get_monitor();
     const workspace = global.workspace_manager.get_active_workspace();
     const wa = workspace.get_work_area_for_monitor(monitorIdx);
-    // Apply edgeMargin by shrinking the work area. Clamp it so the shrunk area
-    // stays positive on small/portrait monitors (margin up to 500px otherwise
-    // makes width/height - 2*margin go negative and produce garbage rects).
-    const maxMargin = Math.max(0, Math.floor(Math.min(wa.width, wa.height) / 2) - 1);
-    const margin = Math.max(0, Math.min(grid.edgeMargin, maxMargin));
-    return {
-      x: wa.x + margin,
-      y: wa.y + margin,
-      width: wa.width - 2 * margin,
-      height: wa.height - 2 * margin,
-    };
+    return shrinkWorkArea(wa, grid.edgeMargin);
   }
 
   // selection is already 0-indexed.

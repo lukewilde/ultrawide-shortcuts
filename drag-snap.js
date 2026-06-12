@@ -8,7 +8,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels } from './positioning.js';
+import { gridToPixels, shrinkWorkArea } from './positioning.js';
 import { unmaximizeWindow } from './compat.js';
 
 const POLL_INTERVAL_MS = 16;
@@ -176,13 +176,7 @@ export class DragSnapManager {
 
     const workspace = global.workspace_manager.get_active_workspace();
     const wa = workspace.get_work_area_for_monitor(monitorIdx);
-    const margin = grid.edgeMargin || 0;
-    const workArea = {
-      x: wa.x + margin,
-      y: wa.y + margin,
-      width: wa.width - 2 * margin,
-      height: wa.height - 2 * margin,
-    };
+    const workArea = shrinkWorkArea(wa, grid.edgeMargin);
 
     const winner = this._closestCandidate(grid, workArea, px, py);
     if (!winner) { this._clearHint(); return; }

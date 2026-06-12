@@ -30,6 +30,26 @@ export function gridToPixels(selection, gridSize, workArea, cellGap = 0) {
   };
 }
 
+/**
+ * Shrink a work area by an edge margin on all sides. The margin is clamped so
+ * the shrunk area stays positive on small/portrait monitors (a margin up to
+ * 500px otherwise makes width/height - 2*margin go negative and produce
+ * garbage rects).
+ * @param {{x: number, y: number, width: number, height: number}} workArea
+ * @param {number} [margin=0] - edge margin in pixels
+ * @returns {{x: number, y: number, width: number, height: number}}
+ */
+export function shrinkWorkArea(workArea, margin = 0) {
+  const maxMargin = Math.max(0, Math.floor(Math.min(workArea.width, workArea.height) / 2) - 1);
+  const m = Math.max(0, Math.min(margin, maxMargin));
+  return {
+    x: workArea.x + m,
+    y: workArea.y + m,
+    width: workArea.width - 2 * m,
+    height: workArea.height - 2 * m,
+  };
+}
+
 // Excludes candidates the window already sits on (within EPS px).
 const EPS = 2;
 

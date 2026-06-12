@@ -8,7 +8,7 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { gridToPixels } from './positioning.js';
+import { gridToPixels, shrinkWorkArea } from './positioning.js';
 import { unmaximizeWindow } from './compat.js';
 
 const POLL_INTERVAL_MS = 16;
@@ -271,13 +271,7 @@ export class EdgeSnapManager {
     const groups = { left: [], right: [], top: [], bottom: [] };
     for (const grid of positions) {
       if (!grid.edgeSnapEnabled) continue;
-      const margin = grid.edgeMargin || 0;
-      const workArea = {
-        x: wa.x + margin,
-        y: wa.y + margin,
-        width: wa.width - 2 * margin,
-        height: wa.height - 2 * margin,
-      };
+      const workArea = shrinkWorkArea(wa, grid.edgeMargin);
       const cellGap = grid.cellGap || 0;
       const gridSize = { cols: grid.cols, rows: grid.rows };
       for (const sc of grid.shortcuts || []) {
