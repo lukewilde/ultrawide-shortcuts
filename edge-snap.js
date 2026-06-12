@@ -45,6 +45,8 @@ export class EdgeSnapManager {
     this._cachedStyle = null;
     this._lastRectKey = null;
     this._lockedCandidates = null;
+    this._lockMonitorIdx = -1;
+    this._lockEdgeKey = null;
 
     this._overlay = null;
   }
@@ -201,8 +203,21 @@ export class EdgeSnapManager {
       return;
     }
 
+    // Invalidate the lock when the pointer crosses to another monitor (adjacent
+    // monitors' edge zones are contiguous, so we never leave a zone) or when the
+    // active-edge set changes (e.g. sliding from an edge into a corner adds an
+    // edge that wasn't bucketed at lock time).
+    const edgeKey = `${edges.left ? 'L' : ''}${edges.right ? 'R' : ''}` +
+                    `${edges.top ? 'T' : ''}${edges.bottom ? 'B' : ''}`;
+    if (this._lockedCandidates &&
+        (monitorIdx !== this._lockMonitorIdx || edgeKey !== this._lockEdgeKey)) {
+      this._lockedCandidates = null;
+    }
+
     if (!this._lockedCandidates) {
       this._lockedCandidates = this._collectCandidates(wa, edges);
+      this._lockMonitorIdx = monitorIdx;
+      this._lockEdgeKey = edgeKey;
     }
     const bestRect = this._pickCandidate(this._lockedCandidates, wa, edges, px, py);
     if (!bestRect) { this._clearHint(); return; }
