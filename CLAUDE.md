@@ -8,6 +8,18 @@ GJS caches ES modules — `disable()`/`enable()` does NOT reload source files.
 **Use `./dev.sh restart-shell` to pick up `.js` changes.** Batch changes to minimize restarts.
 GSettings/dconf values ARE live — prefer config over hardcoded values.
 
+## Critical: New Source Files Need Manual Wiring
+
+Both the lint and CI bundle use **explicit file lists**, not globs. When adding a
+new `.js` module, add it to **all** of these or it silently breaks:
+
+- `package.json` → `lint` script (else it's never linted)
+- `.github/workflows/package.yml` → the `zip` file list (else it's missing from the
+  released bundle and every `import` of it fails at load on users' machines)
+
+Local `restart-shell` is unaffected (the installed dir is a symlink to the repo), so
+a missing entry won't show up until CI/release.
+
 ## Dev Commands
 
 ```bash

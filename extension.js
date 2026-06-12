@@ -5,6 +5,7 @@ import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { gridToPixels, pickNeighbour } from './positioning.js';
+import { unmaximizeWindow } from './compat.js';
 import { KeybindingConflictManager } from './keybinding-conflicts.js';
 import { DragSnapManager } from './drag-snap.js';
 import { EdgeSnapManager } from './edge-snap.js';
@@ -292,7 +293,7 @@ export default class UltrawideShortcutsExtension extends Extension {
   _applySelectionToFocused(grid, focused, selection) {
     const workArea = this._workAreaFor(grid, focused);
     const rect = gridToPixels(selection, { cols: grid.cols, rows: grid.rows }, workArea, grid.cellGap);
-    focused.unmaximize();
+    unmaximizeWindow(focused);
     focused.move_resize_frame(
       false,
       Math.round(rect.x),

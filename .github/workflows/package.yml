@@ -32,6 +32,7 @@ jobs:
           zip ultrawide-shortcuts@lukewilde.co.uk.zip \
             extension.js prefs.js \
             positioning.js keybinding-conflicts.js drag-snap.js edge-snap.js \
+            compat.js \
             metadata.json \
             schemas/org.gnome.shell.extensions.ultrawide-shortcuts.gschema.xml
 
